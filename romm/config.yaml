@@ -44,4 +44,5 @@ schema:
   retroachievements_api_key: "password?"
   steamgriddb_api_key: "password?"
   hasheous_api_enabled: "bool"
-image: "ghcr.io/matthewturk/{arch}-addon-romm"
+# Commented out to allow local builds - uncomment when ready to publish
+# image: "ghcr.io/matthewturk/{arch}-addon-romm"
