@@ -34,16 +34,16 @@ The add-on requires minimal configuration to get started. At minimum, you should
 
 - **library_path**: Path to your ROM library (default: `/share/romm/library`)
   - This is where you should place your ROM files
-  - **Supported paths**: `/share/`, `/media/`, or `/config/` (with any subpath)
+  - **Supported paths**: `/share/`, `/media/`, or `/homeassistant_config/` (with any subpath)
   - **Examples**:
     - `/share/romm/library` (default)
     - `/media/usb_drive/roms` (external drive)
     - `/media/network_share/games` (network storage)
-    - `/config/roms` (config directory)
+    - `/homeassistant_config/roms` (config directory)
   
 - **assets_path**: Path to store assets like saves and states (default: `/share/romm/assets`)
   - RomM will store uploaded saves, states, and other user data here
-  - **Supported paths**: `/share/`, `/media/`, or `/config/` (with any subpath)
+  - **Supported paths**: `/share/`, `/media/`, or `/homeassistant_config/` (with any subpath)
   - Can be on a different mount than library_path
   
 - **auth_secret_key**: Secret key for authentication (leave empty to auto-generate)
@@ -121,7 +121,7 @@ Place your ROMs in the configured library path following this structure:
 - Default: `/share/romm/library/`
 - External USB drive: `/media/usb_drive/roms/`
 - Network share: `/media/nas/gaming/roms/`
-- Config directory: `/config/roms/`
+- Config directory: `/homeassistant_config/roms/`
 
 **Important**: The folder names should match the platform names that RomM recognizes. RomM will automatically detect platforms based on folder names.
 

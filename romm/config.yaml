@@ -9,7 +9,6 @@ arch:
   - aarch64
   - amd64
 init: false
-startup: application
 boot: manual
 ports:
   8080/tcp: 8080
@@ -18,7 +17,7 @@ ports_description:
 map:
   - share:rw
   - media:rw
-  - config:rw
+  - homeassistant_config:rw
 options:
   db_host: ""
   db_name: "romm"
