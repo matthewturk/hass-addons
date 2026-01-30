@@ -1,0 +1,93 @@
+#!/usr/bin/with-contenv bashio
+# ==============================================================================
+# Start the RomM service
+# s6-overlay docs: https://github.com/just-containers/s6-overlay
+# ==============================================================================
+
+bashio::log.info "Starting RomM..."
+
+# Declare variables
+declare db_host
+declare db_name
+declare db_user
+declare db_passwd
+declare auth_secret_key
+declare library_path
+declare assets_path
+
+# Get configuration values
+db_host=$(bashio::config 'db_host')
+db_name=$(bashio::config 'db_name')
+db_user=$(bashio::config 'db_user')
+db_passwd=$(bashio::config 'db_passwd')
+auth_secret_key=$(bashio::config 'auth_secret_key')
+library_path=$(bashio::config 'library_path')
+assets_path=$(bashio::config 'assets_path')
+
+# Export environment variables for RomM
+if [ -n "$db_host" ]; then
+    export DB_HOST="${db_host}"
+    export DB_NAME="${db_name}"
+    export DB_USER="${db_user}"
+    export DB_PASSWD="${db_passwd}"
+    bashio::log.info "Using external database at ${db_host}"
+else
+    bashio::log.info "No external database configured, RomM will use SQLite"
+fi
+
+# Set auth secret key
+if [ -n "$auth_secret_key" ]; then
+    export ROMM_AUTH_SECRET_KEY="${auth_secret_key}"
+else
+    bashio::log.warning "No auth secret key configured. One will be auto-generated."
+fi
+
+# Export optional API keys
+screenscraper_user=$(bashio::config 'screenscraper_user')
+if [ -n "$screenscraper_user" ]; then
+    export SCREENSCRAPER_USER="${screenscraper_user}"
+    export SCREENSCRAPER_PASSWORD=$(bashio::config 'screenscraper_password')
+    bashio::log.info "ScreenScraper configured"
+fi
+
+retroachievements_api_key=$(bashio::config 'retroachievements_api_key')
+if [ -n "$retroachievements_api_key" ]; then
+    export RETROACHIEVEMENTS_API_KEY="${retroachievements_api_key}"
+    bashio::log.info "RetroAchievements configured"
+fi
+
+steamgriddb_api_key=$(bashio::config 'steamgriddb_api_key')
+if [ -n "$steamgriddb_api_key" ]; then
+    export STEAMGRIDDB_API_KEY="${steamgriddb_api_key}"
+    bashio::log.info "SteamGridDB configured"
+fi
+
+hasheous_api_enabled=$(bashio::config 'hasheous_api_enabled')
+export HASHEOUS_API_ENABLED="${hasheous_api_enabled}"
+
+# Set romm base path
+export ROMM_BASE_PATH="/romm"
+
+# Create directories if they don't exist
+mkdir -p "${library_path}"
+mkdir -p "${assets_path}"
+mkdir -p /romm/resources
+mkdir -p /redis-data
+mkdir -p /romm/config
+
+# Link configured paths to romm's expected paths
+rm -rf /romm/library /romm/assets
+ln -sf "${library_path}" /romm/library
+ln -sf "${assets_path}" /romm/assets
+
+# Start Redis server in the background
+bashio::log.info "Starting Redis..."
+redis-server --dir /redis-data --daemonize yes
+
+# Give Redis time to start
+sleep 2
+
+bashio::log.info "Configuration complete. Starting RomM..."
+
+# Execute romm's entrypoint script
+exec /entrypoint.sh

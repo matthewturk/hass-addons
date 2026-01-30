@@ -1,0 +1,69 @@
+#include <tunables/global>
+
+profile romm flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  # Capabilities
+  file,
+  signal (send) set=(kill,term,int,hup,cont),
+
+  # S6-Overlay
+  /init ix,
+  /bin/** ix,
+  /usr/bin/** ix,
+  /run/{s6,s6-rc*,service}/** ix,
+  /package/** ix,
+  /command/** ix,
+  /etc/services.d/** rwix,
+  /etc/cont-init.d/** rwix,
+  /etc/cont-finish.d/** rwix,
+  /run/{,**} rwk,
+  /dev/tty rw,
+
+  # Bashio
+  /usr/lib/bashio/** ix,
+  /tmp/** rwk,
+
+  # Access to options.json and other files within your addon
+  /data/** rw,
+
+  # Access to mapped volumes
+  /share/** rw,
+  /media/** rw,
+  /config/** rw,
+
+  # RomM application
+  /app/** ix,
+  /romm/** rw,
+  /redis-data/** rw,
+
+  # Python and dependencies
+  /usr/bin/python* ix,
+  /usr/lib/python*/** mr,
+
+  # Network access for RomM
+  network tcp,
+  network udp,
+
+  # Database access
+  /var/lib/mysql/** rw,
+  /var/run/mysqld/** rw,
+
+  # System files RomM might need
+  /etc/passwd r,
+  /etc/group r,
+  /etc/nsswitch.conf r,
+  /etc/hosts r,
+  /etc/resolv.conf r,
+  /etc/ssl/openssl.cnf r,
+  /etc/ssl/certs/** r,
+  /usr/share/ca-certificates/** r,
+  
+  # Proc filesystem
+  /proc/sys/kernel/random/uuid r,
+  /proc/*/stat r,
+  /proc/*/status r,
+  
+  # Device access
+  /dev/urandom r,
+}

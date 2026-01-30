@@ -1,0 +1,12 @@
+# https://developers.home-assistant.io/docs/add-ons/configuration#add-on-dockerfile
+build_from:
+  aarch64: "rommapp/romm:latest"
+  amd64: "rommapp/romm:latest"
+labels:
+  org.opencontainers.image.title: "Home Assistant Add-on: RomM"
+  org.opencontainers.image.description: "ROM Manager - A beautiful, powerful, self-hosted ROM management solution"
+  org.opencontainers.image.source: "https://github.com/matthewturk/hass-romm"
+  org.opencontainers.image.licenses: "Apache License 2.0"
+args:
+  BASHIO_VERSION: "0.16.2"
+  S6_OVERLAY_VERSION: "3.1.6.2"
