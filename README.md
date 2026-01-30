@@ -29,11 +29,22 @@ _ROM Manager - A beautiful, powerful, self-hosted ROM management solution._
 
 ## Installation
 
-1. Click the button above or manually add this repository to your Home Assistant add-on store
+### Standard Installation
+
+1. Click the button above or manually add this repository URL to your Home Assistant add-on store: `https://github.com/matthewturk/hass-romm`
 2. Install the "RomM" add-on
 3. Configure the add-on settings
 4. Start the add-on
-5. Access RomM via the web UI on port 8080
+5. Access RomM via the "Open Web UI" button or on port 8080
+
+### Local Deployment (No Remote Repo)
+
+To deploy this add-on locally without using GitHub:
+
+1. Copy the `romm` folder from this repository into the `/addons` directory of your Home Assistant installation.
+2. Go to **Settings** > **Add-ons** > **Add-on Store** in Home Assistant.
+3. Click the menu (three dots) in the top right and select **Check for updates**.
+4. Install "RomM" from the **Local add-ons** section.
 
 ## Configuration
 
@@ -41,6 +52,7 @@ The add-on can be configured through the Home Assistant UI. Key configuration op
 
 - **ROM Library Path**: Where your ROM files are stored
 - **Assets Path**: Where saves, states, and other assets are stored
+- **Network Port**: By default, it uses port 8080. You can change this in the **Network** tab of the add-on settings if you want to use a different port for direct access.
 - **Database Settings**: Optional external database configuration
 - **API Keys**: Optional metadata provider API keys for enhanced functionality
 

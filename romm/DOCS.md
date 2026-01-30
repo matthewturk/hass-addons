@@ -15,11 +15,24 @@ RomM (ROM Manager) is a beautiful, powerful, self-hosted ROM management solution
 
 ## Installation
 
-1. Add this repository to your Home Assistant add-on store
+### From Repository (Remote)
+
+1. Add this repository to your Home Assistant add-on store: `https://github.com/matthewturk/hass-romm`
 2. Install the "RomM" add-on
 3. Configure the add-on (see Configuration section below)
 4. Start the add-on
-5. Access RomM via the web UI on port 8080
+5. Access RomM via the "Open Web UI" button or on port 8080
+
+### Local Deployment (Manual)
+
+If you want to deploy this add-on locally without using a remote GitHub repository:
+
+1. Enable the **Samba share** or **SSH** add-on in Home Assistant to access your HA file system.
+2. Create a folder named `romm` inside the `/addons` directory of your Home Assistant installation.
+3. Copy all files from this repository's `romm/` folder (including `Dockerfile`, `config.yaml`, and the `rootfs` directory) into that new `/addons/romm/` directory.
+4. In the Home Assistant UI, go to **Settings** > **Add-ons** > **Add-on Store**.
+5. Click the three-dot menu in the upper right and select **Check for updates**.
+6. A new section called **Local Add-ons** will appear at the top. Find "RomM" and click **Install**.
 
 ## Configuration
 
@@ -29,6 +42,16 @@ The add-on requires minimal configuration to get started. At minimum, you should
 
 1. Set an authentication secret key (or one will be generated automatically)
 2. Configure where your ROM library and assets will be stored
+
+### Network and Ports
+
+By default, the add-on is accessible via **Ingress** (the "Open Web UI" button in the Home Assistant sidebar).
+
+If you want to access RomM directly via a port:
+
+1. Go to the **Network** tab in the add-on settings.
+2. Under the **8080/tcp** entry, you can change the host port from `8080` to any other available port (e.g., `8888`).
+3. Click **Save** and restart the add-on.
 
 ### Configuration Options
 
@@ -40,12 +63,10 @@ The add-on requires minimal configuration to get started. At minimum, you should
     - `/media/usb_drive/roms` (external drive)
     - `/media/network_share/games` (network storage)
     - `/homeassistant_config/roms` (config directory)
-  
 - **assets_path**: Path to store assets like saves and states (default: `/share/romm/assets`)
   - RomM will store uploaded saves, states, and other user data here
   - **Supported paths**: `/share/`, `/media/`, or `/homeassistant_config/` (with any subpath)
   - Can be on a different mount than library_path
-  
 - **auth_secret_key**: Secret key for authentication (leave empty to auto-generate)
   - Used to encrypt authentication tokens
   - If you don't provide one, a random key will be generated on each start
@@ -86,15 +107,11 @@ Configure API keys for metadata providers to enhance your library:
 
 - **screenscraper_user**: ScreenScraper username
   - Register at https://www.screenscraper.fr/
-  
 - **screenscraper_password**: ScreenScraper password
-  
 - **retroachievements_api_key**: RetroAchievements API key
   - Get your key from https://retroachievements.org/
-  
 - **steamgriddb_api_key**: SteamGridDB API key
   - Get your key from https://www.steamgriddb.com/
-  
 - **hasheous_api_enabled**: Enable Hasheous metadata provider (default: true)
   - No API key required
 
@@ -118,6 +135,7 @@ Place your ROMs in the configured library path following this structure:
 ```
 
 **Examples of library_path configurations:**
+
 - Default: `/share/romm/library/`
 - External USB drive: `/media/usb_drive/roms/`
 - Network share: `/media/nas/gaming/roms/`
@@ -148,6 +166,7 @@ The add-on supports storing ROMs on external drives or network shares via the `/
    - The startup script will create directories and symlink them to RomM's expected paths
 
 **Benefits of using /media:**
+
 - Store large ROM collections on external drives
 - Use network-attached storage (NAS) for centralized ROM management
 - Separate ROM storage from Home Assistant's main storage
@@ -162,7 +181,6 @@ The add-on supports storing ROMs on external drives or network shares via the `/
 
 ## Known Limitations
 
-- **Ingress**: This add-on does not currently support Home Assistant ingress. You must access it via the direct port (8080).
 - **Redis**: Redis is managed internally by the add-on. External Redis configuration is not currently supported.
 
 ## Technical Notes
@@ -172,6 +190,7 @@ The add-on supports storing ROMs on external drives or network shares via the `/
 This add-on runs RomM using its official Docker image, which runs the frontend with `npm run dev` (development mode). This is **intentional and by design** from the RomM developers - the official Docker image uses dev mode even in production deployments.
 
 **Why this is not a problem:**
+
 - This is the official, supported way to run RomM in Docker
 - All features work correctly in dev mode
 - Development mode features (hot reload, verbose logging) are not problematic in self-hosted environments
@@ -182,17 +201,20 @@ If you have concerns about this, please refer to the [RomM project's documentati
 ## Troubleshooting
 
 ### Cannot access the web interface
+
 - Make sure port 8080 is not already in use by another service
 - Check the add-on logs for any errors
 - Verify that the add-on is running
 
 ### ROMs not detected
+
 - Check that your ROM files are in the correct folder structure
 - Make sure the paths are correctly configured in the add-on settings
 - Verify that the add-on has read/write access to the library path
 - Try refreshing/rescanning your library from the web interface
 
 ### Database connection errors
+
 - If using an external database, verify the connection details
 - Check that the database server is running and accessible
 - Verify that the database user has the correct permissions
@@ -200,9 +222,11 @@ If you have concerns about this, please refer to the [RomM project's documentati
 ## Support
 
 For more information about RomM:
+
 - Documentation: https://docs.romm.app/
 - GitHub: https://github.com/rommapp/romm
 - Home: https://romm.app/
 
 For issues specific to this Home Assistant add-on:
+
 - GitHub Issues: https://github.com/matthewturk/hass-romm/issues
