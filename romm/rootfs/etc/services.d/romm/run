@@ -14,6 +14,7 @@ declare db_passwd
 declare auth_secret_key
 declare library_path
 declare assets_path
+declare config_path
 
 # Get configuration values
 db_host=$(bashio::config 'db_host')
@@ -23,6 +24,7 @@ db_passwd=$(bashio::config 'db_passwd')
 auth_secret_key=$(bashio::config 'auth_secret_key')
 library_path=$(bashio::config 'library_path')
 assets_path=$(bashio::config 'assets_path')
+config_path=$(bashio::config 'config_path')
 
 # Check for MariaDB service if not configured manually
 if [ -z "$db_host" ] && bashio::services.available 'mariadb'; then
@@ -115,6 +117,12 @@ else
     bashio::log.warning "HASS /media mount NOT detected. Local folder will be used."
 fi
 
+if [ -d "/config" ]; then
+    bashio::log.info "HASS /config mount detected."
+else
+    bashio::log.warning "HASS /config mount NOT detected. Local folder will be used."
+fi
+
 # Set romm base path to a writable location
 # This avoid permission issues with the built-in /romm directory
 export ROMM_BASE_PATH="/data/romm"
@@ -135,12 +143,23 @@ ln -snf "${assets_path}" "${ROMM_BASE_PATH}/assets"
 ln -snf "/romm/resources" "${ROMM_BASE_PATH}/resources"
 
 # Setup persistent config
-mkdir -p "/data/config"
-ln -snf "/data/config" "${ROMM_BASE_PATH}/config"
-
-if [ ! -f "/data/config/config.yml" ]; then
-    echo "{}" > "/data/config/config.yml"
+bashio::log.info "Configuring RomM config file at ${config_path}..."
+mkdir -p "$(dirname "${config_path}")"
+if [ ! -f "${config_path}" ]; then
+    if [ -f "/data/config/config.yml" ]; then
+        bashio::log.info "Migrating existing configuration from /data/config/config.yml..."
+        cp "/data/config/config.yml" "${config_path}"
+    else
+        echo "{}" > "${config_path}"
+    fi
+    chmod 666 "${config_path}"
 fi
+
+# Link it to the internal locations RomM expects
+mkdir -p "/romm/config"
+ln -sf "${config_path}" "/romm/config/config.yml"
+mkdir -p "${ROMM_BASE_PATH}/config"
+ln -sf "${config_path}" "${ROMM_BASE_PATH}/config/config.yml"
 
 # Networking configuration
 export ROMM_PORT="8080"
@@ -169,15 +188,6 @@ appendonly no
 protected-mode no
 bind 127.0.0.1
 EOF
-
-# Create an empty config.yml if it doesn't exist for RomM persistence
-if [ ! -f "/data/config/config.yml" ]; then
-    echo "{}" > "/data/config/config.yml"
-fi
-chmod 666 /data/config/config.yml
-
-# We try to symlink the individual file if the directory is protected
-ln -sf /data/config/config.yml /romm/config/config.yml 2>/dev/null || true
 
 # Point RomM to use our /data directories for its own internal logic where possible
 export REDIS_HOST="127.0.0.1" # This tells RomM to skip its internal watchdog and use ours

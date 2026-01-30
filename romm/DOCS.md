@@ -89,16 +89,20 @@ You can use your system-wide SSL certificates (e.g., from Let's Encrypt) with Ro
 
 - **library_path**: Path to your ROM library (default: `/share/romm/library`)
   - This is where you should place your ROM files
-  - **Supported paths**: `/share/`, `/media/`, or `/homeassistant_config/` (with any subpath)
+  - **Supported paths**: `/share/`, `/media/`, or `/config/` (with any subpath)
   - **Examples**:
     - `/share/romm/library` (default)
     - `/media/usb_drive/roms` (external drive)
     - `/media/network_share/games` (network storage)
-    - `/homeassistant_config/roms` (config directory)
+    - `/config/roms` (config directory)
 - **assets_path**: Path to store assets like saves and states (default: `/share/romm/assets`)
   - RomM will store uploaded saves, states, and other user data here
-  - **Supported paths**: `/share/`, `/media/`, or `/homeassistant_config/` (with any subpath)
+  - **Supported paths**: `/share/`, `/media/`, or `/config/` (with any subpath)
   - Can be on a different mount than library_path
+- **config_path**: Path to the RomM configuration file (default: `/share/romm/config.yml`)
+  - This allows you to edit advanced RomM settings (like netplay, controller mapping) directly in a YAML file
+  - **Supported paths**: `/share/`, `/media/`, or `/config/` (with any subpath)
+  - You can use `/config/romm/config.yml` to make it editable via the Home Assistant File Editor add-on.
 - **auth_secret_key**: Secret key for authentication (leave empty to auto-generate)
   - Used to encrypt authentication tokens
   - If you don't provide one, a random key will be generated on each start
@@ -174,7 +178,7 @@ Place your ROMs in the configured library path following this structure:
 - Default: `/share/romm/library/`
 - External USB drive: `/media/usb_drive/roms/`
 - Network share: `/media/nas/gaming/roms/`
-- Config directory: `/homeassistant_config/roms/`
+- Config directory: `/config/roms/`
 
 **Important**: The folder names should match the platform names that RomM recognizes. RomM will automatically detect platforms based on folder names.
 

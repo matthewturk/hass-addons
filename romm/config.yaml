@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
 name: RomM
-version: "1.4.6"
+version: "1.4.7"
 slug: romm
 description: ROM Manager - A beautiful, powerful, self-hosted ROM management solution
 url: "https://github.com/matthewturk/hass-romm"
@@ -37,6 +37,7 @@ options:
   retroachievements_api_key: ""
   steamgriddb_api_key: ""
   hasheous_api_enabled: true
+  config_path: "/share/romm/config.yml"
   ssl: false
   certfile: "fullchain.pem"
   keyfile: "privkey.pem"
@@ -53,6 +54,7 @@ schema:
   retroachievements_api_key: "password?"
   steamgriddb_api_key: "password?"
   hasheous_api_enabled: "bool"
+  config_path: "str"
   ssl: "bool"
   certfile: "str"
   keyfile: "str"
