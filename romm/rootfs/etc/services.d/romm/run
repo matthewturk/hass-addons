@@ -204,6 +204,37 @@ if [ -f /usr/bin/romm-init ]; then
     sed -i "s/nginx -g 'user romm;'/nginx/g" /usr/bin/romm-init
 fi
 
+# Deep-scanning size support: Patch RomM to report uncompressed size for archives.
+# This fixes metadata matching for zipped ROMs on ScreenScraper and Hasheous.
+ROMM_HANDLER="/romm/backend/handler/filesystem/roms_handler.py"
+if [ -f "$ROMM_HANDLER" ]; then
+    bashio::log.info "Patching RomM to support deep-scanning of zipped ROMs..."
+    
+    # Inject helper method into FSRomsHandler class
+    # We use a unique marker (class definition) to avoid double-injecting on restart
+    if ! grep -q "_get_deep_size" "$ROMM_HANDLER"; then
+        sed -i "/class FSRomsHandler(FSHandler):/a \\
+    def _get_deep_size(self, path):\\
+        try:\\
+            path_str = str(path).lower()\\
+            if path_str.endswith('.zip'):\\
+                with zipfile.ZipFile(path) as z: return max(f.file_size for f in z.infolist())\\
+            if path_str.endswith(('.tar', '.tar.gz', '.tgz', '.tar.bz2', '.tar.xz')):\\
+                import tarfile\\
+                with tarfile.open(path) as t: return max(m.size for m in t.getmembers() if m.isfile())\\
+            if path_str.endswith('.7z'):\\
+                import subprocess\\
+                res = subprocess.run(['7zz', 'l', '-slt', '-ba', str(path)], capture_output=True, text=True, check=True)\\
+                sizes = [int(l.split('=')[1]) for l in res.stdout.splitlines() if l.startswith('Size = ')]\\
+                if sizes: return max(sizes)\\
+        except: pass\\
+        return os.stat(path).st_size" "$ROMM_HANDLER"
+
+        # Apply the helper call
+        sed -i "s/file_size_bytes=os.stat(abs_file_path).st_size/file_size_bytes=self._get_deep_size(abs_file_path)/" "$ROMM_HANDLER"
+    fi
+fi
+
 bashio::log.info "Starting local Valkey (Redis) on /data/redis..."
 valkey-server /usr/local/etc/valkey/valkey.conf --daemonize yes
 
