@@ -102,53 +102,115 @@ else
     export HASHEOUS_API_ENABLED="true"
 fi
 
-# Set romm base path and user-configured paths
-export ROMM_BASE_PATH="/romm"
-export ROMM_LIBRARY_PATH="${library_path}"
-export ROMM_ASSETS_PATH="${assets_path}"
+# Verify HASS mounts
+if [ -d "/share" ]; then
+    bashio::log.info "HASS /share mount detected."
+else
+    bashio::log.warning "HASS /share mount NOT detected. Local folder will be used."
+fi
 
-bashio::log.info "Library path: ${ROMM_LIBRARY_PATH}"
-bashio::log.info "Assets path: ${ROMM_ASSETS_PATH}"
+if [ -d "/media" ]; then
+    bashio::log.info "HASS /media mount detected."
+else
+    bashio::log.warning "HASS /media mount NOT detected. Local folder will be used."
+fi
 
-# Create directories if they don't exist
+# Set romm base path to a writable location
+# This avoid permission issues with the built-in /romm directory
+export ROMM_BASE_PATH="/data/romm"
+mkdir -p "${ROMM_BASE_PATH}"
+
+bashio::log.info "Library path: ${library_path}"
+bashio::log.info "Assets path: ${assets_path}"
+
+# Create the target directories on the HASS shares
 mkdir -p "${library_path}"
 mkdir -p "${assets_path}"
-mkdir -p /romm/resources
-mkdir -p /redis-data
-mkdir -p /romm/config
 
-# Start Redis server in the background
-bashio::log.info "Starting Redis..."
-redis-server --dir /redis-data --daemonize yes
+# Symlink them into the RomM root
+ln -snf "${library_path}" "${ROMM_BASE_PATH}/library"
+ln -snf "${assets_path}" "${ROMM_BASE_PATH}/assets"
 
-# Give Redis time to start
-sleep 2
+# Resources are static and provided by the image - link them to our new root
+ln -snf "/romm/resources" "${ROMM_BASE_PATH}/resources"
 
-bashio::log.info "Configuration complete. Starting RomM..."
+# Setup persistent config
+mkdir -p "/data/config"
+ln -snf "/data/config" "${ROMM_BASE_PATH}/config"
 
-# Execute romm's entrypoint script with the backend command
-if [ -f "/docker-entrypoint.sh" ]; then
-    exec /docker-entrypoint.sh python3 /backend/main.py
-elif [ -f "/entrypoint.sh" ]; then
-    exec /entrypoint.sh python3 /backend/main.py
-elif [ -f "/app/entrypoint.sh" ]; then
-    exec /app/entrypoint.sh python3 /backend/main.py
-else
-    # Direct fallback
-    exec python3 /backend/main.py
+if [ ! -f "/data/config/config.yml" ]; then
+    echo "{}" > "/data/config/config.yml"
 fi
-    bashio::log.info "Found RomM entrypoint at /entrypoint.sh"
-    exec /entrypoint.sh
-elif [ -f "/app/entrypoint.sh" ]; then
-    bashio::log.info "Found RomM entrypoint at /app/entrypoint.sh"
-    exec /app/entrypoint.sh
-else
-    bashio::log.error "Could not find RomM entrypoint script."
-    # Try to find where it is and run it if found
-    FOUND_ENTRY=$(find / -name "*entrypoint.sh" 2>/dev/null | head -n 1)
-    if [ -n "$FOUND_ENTRY" ]; then
-        bashio::log.info "Found entrypoint at $FOUND_ENTRY, executing..."
-        exec "$FOUND_ENTRY"
-    fi
-    bashio::exit.nok "Entrypoint not found"
+
+# Networking configuration
+export ROMM_PORT="8080"
+export HOST="0.0.0.0"
+
+# Note: RomM v3.0+ uses an internal process manager (/init) that starts
+# Valkey (Redis), Gunicorn (Backend), and Nginx (Frontend).
+# We must call the official entrypoint and /init to ensure all services start.
+
+# Internal directories needed by RomM/Nginx
+# Use /data for everything writable to avoid permission issues in rootfs
+mkdir -p /data/redis
+mkdir -p /data/nginx/client_body
+mkdir -p /data/nginx/proxy
+mkdir -p /data/nginx/fastcgi
+mkdir -p /data/nginx/uwsgi
+mkdir -p /data/nginx/scgi
+chmod -R 777 /data
+
+# Create a custom Valkey configuration to use /data and disable failing persistence
+mkdir -p /usr/local/etc/valkey
+cat <<EOF > /usr/local/etc/valkey/valkey.conf
+dir /data/redis
+save ""
+appendonly no
+protected-mode no
+bind 127.0.0.1
+EOF
+
+# Create an empty config.yml if it doesn't exist for RomM persistence
+if [ ! -f "/data/config/config.yml" ]; then
+    echo "{}" > "/data/config/config.yml"
 fi
+chmod 666 /data/config/config.yml
+
+# We try to symlink the individual file if the directory is protected
+ln -sf /data/config/config.yml /romm/config/config.yml 2>/dev/null || true
+
+# Point RomM to use our /data directories for its own internal logic where possible
+export REDIS_HOST="127.0.0.1" # This tells RomM to skip its internal watchdog and use ours
+export REDIS_PORT="6379"
+
+# Patch Nginx configuration to use /data for temporary files instead of /tmp
+# and ensure it runs as root to avoid permission dropping issues.
+if [ -f /etc/nginx/nginx.conf ]; then
+    bashio::log.info "Patching Nginx configuration..."
+    # Add user root to top of file
+    sed -i '1iuser root;' /etc/nginx/nginx.conf
+    # Patch paths
+    sed -i 's|/tmp/client_body|/data/nginx/client_body|g' /etc/nginx/nginx.conf
+    sed -i 's|/tmp/fastcgi|/data/nginx/fastcgi|g' /etc/nginx/nginx.conf
+    sed -i 's|/tmp/proxy|/data/nginx/proxy|g' /etc/nginx/nginx.conf
+    sed -i 's|/tmp/uwsgi|/data/nginx/uwsgi|g' /etc/nginx/nginx.conf
+    sed -i 's|/tmp/scgi|/data/nginx/scgi|g' /etc/nginx/nginx.conf
+fi
+
+# Patch RomM's internal init script to avoid dropping permissions to 'romm' user
+# as the Home Assistant environment doesn't allow the master process to chown directories.
+if [ -f /usr/bin/romm-init ]; then
+    bashio::log.info "Patching RomM init script to prevent permission dropping..."
+    sed -i "s/nginx -g 'user romm;'/nginx/g" /usr/bin/romm-init
+fi
+
+bashio::log.info "Starting local Valkey (Redis) on /data/redis..."
+valkey-server /usr/local/etc/valkey/valkey.conf --daemonize yes
+
+bashio::log.info "Configuration complete. Starting RomM services..."
+
+# Execute the official entrypoint with the preserved official init script.
+# Since REDIS_HOST is set, it will behave as if using an external Redis
+# and skip the failing /redis-data logic.
+chmod +x /docker-entrypoint.sh /usr/bin/romm-init
+exec /docker-entrypoint.sh /usr/bin/romm-init

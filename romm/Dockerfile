@@ -7,17 +7,14 @@ FROM ${BUILD_FROM}
 ARG S6_OVERLAY_VERSION
 ARG BASHIO_VERSION
 
-# Install dependencies (Alpine uses apk)
+# Install dependencies for the build/init (not already in base)
 RUN apk add --no-cache \
-    curl \
     xz \
-    redis \
-    bash \
     jq \
-    ca-certificates \
-    tzdata \
-    python3 \
-    && ln -s /bin/bash /usr/bin/bash
+    && ln -sf /bin/bash /usr/bin/bash
+
+# Preserve the original RomM init script (bash) before s6-overlay overwrites it
+RUN mv /init /usr/bin/romm-init && chmod +x /usr/bin/romm-init
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

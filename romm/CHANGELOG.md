@@ -1,5 +1,13 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.4.0
+
+- Fixed `s6-overlay-suexec` fatal PID 1 error by preserving official RomM init
+- Added official RomM process manager support (Nginx, Valkey, Gunicorn)
+- Implemented persistent configuration via `/data/config/config.yml`
+- Added automatic MariaDB add-on detection and service integration
+- Resolved 502 Bad Gateway errors by correctly starting frontend services
+
 ## 1.2.9
 
 - Fixed `ROMM_AUTH_SECRET_KEY` generation logic
