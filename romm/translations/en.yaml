@@ -16,10 +16,10 @@ configuration:
     description: Secret key for authentication (leave empty to auto-generate).
   library_path:
     name: Library Path
-    description: Path where your ROM library is stored.
+    description: Path where your ROM library is stored. Supports /share/, /media/, or /config/ with any subpath (e.g., /media/usb_drive/roms).
   assets_path:
     name: Assets Path
-    description: Path where assets (saves, states, etc.) are stored.
+    description: Path where assets (saves, states, etc.) are stored. Supports /share/, /media/, or /config/ with any subpath.
   screenscraper_user:
     name: ScreenScraper Username
     description: Username for ScreenScraper metadata provider.

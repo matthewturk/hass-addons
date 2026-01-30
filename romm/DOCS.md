@@ -34,10 +34,17 @@ The add-on requires minimal configuration to get started. At minimum, you should
 
 - **library_path**: Path to your ROM library (default: `/share/romm/library`)
   - This is where you should place your ROM files
-  - Must be accessible from Home Assistant (use `/share/`, `/media/`, or `/config/`)
+  - **Supported paths**: `/share/`, `/media/`, or `/config/` (with any subpath)
+  - **Examples**:
+    - `/share/romm/library` (default)
+    - `/media/usb_drive/roms` (external drive)
+    - `/media/network_share/games` (network storage)
+    - `/config/roms` (config directory)
   
 - **assets_path**: Path to store assets like saves and states (default: `/share/romm/assets`)
   - RomM will store uploaded saves, states, and other user data here
+  - **Supported paths**: `/share/`, `/media/`, or `/config/` (with any subpath)
+  - Can be on a different mount than library_path
   
 - **auth_secret_key**: Secret key for authentication (leave empty to auto-generate)
   - Used to encrypt authentication tokens
@@ -98,7 +105,7 @@ For more information on metadata providers, see: https://docs.romm.app/latest/Ge
 Place your ROMs in the configured library path following this structure:
 
 ```
-/share/romm/library/
+<your_configured_path>/
 ├── Nintendo - Nintendo Entertainment System/
 │   ├── Game1.nes
 │   └── Game2.nes
@@ -110,9 +117,40 @@ Place your ROMs in the configured library path following this structure:
     └── Game2.iso
 ```
 
+**Examples of library_path configurations:**
+- Default: `/share/romm/library/`
+- External USB drive: `/media/usb_drive/roms/`
+- Network share: `/media/nas/gaming/roms/`
+- Config directory: `/config/roms/`
+
 **Important**: The folder names should match the platform names that RomM recognizes. RomM will automatically detect platforms based on folder names.
 
 For detailed folder structure guidelines, see: https://docs.romm.app/latest/Getting-Started/Folder-Structure/
+
+## Using External Storage
+
+The add-on supports storing ROMs on external drives or network shares via the `/media` mount point.
+
+### Setting up External Storage
+
+1. **Mount your storage in Home Assistant**
+   - USB drives, external hard drives, and network shares should be mounted to `/media`
+   - Home Assistant automatically mounts USB drives under `/media/`
+   - For network shares (NFS/SMB), configure them in Home Assistant's configuration
+
+2. **Configure library_path**
+   - Set `library_path` to point to your media location
+   - Example: `/media/usb_drive/roms` or `/media/nas_share/gaming/roms`
+   - The add-on will create the directory if it doesn't exist
+
+3. **Verify access**
+   - Check the add-on logs to ensure the path is accessible
+   - The startup script will create directories and symlink them to RomM's expected paths
+
+**Benefits of using /media:**
+- Store large ROM collections on external drives
+- Use network-attached storage (NAS) for centralized ROM management
+- Separate ROM storage from Home Assistant's main storage
 
 ## Usage
 
