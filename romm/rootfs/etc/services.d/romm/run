@@ -44,10 +44,13 @@ fi
 
 # Export optional API keys
 screenscraper_user=$(bashio::config 'screenscraper_user')
-if [ -n "$screenscraper_user" ]; then
+screenscraper_password=$(bashio::config 'screenscraper_password')
+if [ -n "$screenscraper_user" ] && [ -n "$screenscraper_password" ]; then
     export SCREENSCRAPER_USER="${screenscraper_user}"
-    export SCREENSCRAPER_PASSWORD=$(bashio::config 'screenscraper_password')
+    export SCREENSCRAPER_PASSWORD="${screenscraper_password}"
     bashio::log.info "ScreenScraper configured"
+elif [ -n "$screenscraper_user" ]; then
+    bashio::log.warning "ScreenScraper user provided but password is missing"
 fi
 
 retroachievements_api_key=$(bashio::config 'retroachievements_api_key')
@@ -63,7 +66,11 @@ if [ -n "$steamgriddb_api_key" ]; then
 fi
 
 hasheous_api_enabled=$(bashio::config 'hasheous_api_enabled')
-export HASHEOUS_API_ENABLED="${hasheous_api_enabled}"
+if [ -n "$hasheous_api_enabled" ]; then
+    export HASHEOUS_API_ENABLED="${hasheous_api_enabled}"
+else
+    export HASHEOUS_API_ENABLED="true"
+fi
 
 # Set romm base path
 export ROMM_BASE_PATH="/romm"
