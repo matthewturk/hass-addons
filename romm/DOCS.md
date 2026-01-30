@@ -126,7 +126,20 @@ For detailed folder structure guidelines, see: https://docs.romm.app/latest/Gett
 
 - **Ingress**: This add-on does not currently support Home Assistant ingress. You must access it via the direct port (8080).
 - **Redis**: Redis is managed internally by the add-on. External Redis configuration is not currently supported.
-- **Frontend**: The add-on runs RomM in development mode. This should work fine for most use cases but may have slightly different behavior than a production build.
+
+## Technical Notes
+
+### Frontend Development Mode
+
+This add-on runs RomM using its official Docker image, which runs the frontend with `npm run dev` (development mode). This is **intentional and by design** from the RomM developers - the official Docker image uses dev mode even in production deployments.
+
+**Why this is not a problem:**
+- This is the official, supported way to run RomM in Docker
+- All features work correctly in dev mode
+- Development mode features (hot reload, verbose logging) are not problematic in self-hosted environments
+- The RomM project has chosen this approach for their official distribution
+
+If you have concerns about this, please refer to the [RomM project's documentation](https://docs.romm.app/) and their [official Docker image](https://hub.docker.com/r/rommapp/romm).
 
 ## Troubleshooting
 
