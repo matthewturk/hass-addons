@@ -11,16 +11,37 @@ RomM (ROM Manager) is a beautiful, powerful, self-hosted ROM management solution
 - **Multi-Platform Support**: Support for numerous gaming platforms and emulators
 - **Cover Art & Screenshots**: Automatically download and display cover art and screenshots
 - **Web Interface**: Modern, responsive web UI accessible from any device
-- **Database Support**: Use SQLite (built-in) or external MariaDB/MySQL database
+- **Database Support**: MariaDB/MySQL or PostgreSQL required (MariaDB add-on recommended)
 
 ## Installation
+
+### Prerequisites
+
+**RomM requires a database.** The simplest way to provide this is by using the official Home Assistant **MariaDB add-on**.
+
+1. Install the **MariaDB add-on** from the Add-on Store.
+2. In the MariaDB add-on configuration, add a database for RomM:
+   ```yaml
+   databases:
+     - romm
+   logins:
+     - database: romm
+       password: your-secure-password
+       username: romm-user
+   ```
+3. Start the MariaDB add-on.
 
 ### From Repository (Remote)
 
 1. Add this repository to your Home Assistant add-on store: `https://github.com/matthewturk/hass-romm`
-2. Install the "RomM" add-on
-3. Configure the add-on (see Configuration section below)
-4. Start the add-on
+2. Install the "RomM" add-on.
+3. In the RomM add-on **Configuration** tab:
+   - If using the MariaDB add-on, the settings are optional as RomM will try to detect it automatically. For reliability, it is recommended to set:
+     - `db_host`: `core-mariadb`
+     - `db_name`: `romm`
+     - `db_user`: `romm-user`
+     - `db_passwd`: `your-secure-password`
+4. Start the add-on.
 5. Access RomM via the "Open Web UI" button or on port 8080
 
 ### Local Deployment (Manual)
@@ -53,6 +74,17 @@ If you want to access RomM directly via a port:
 2. Under the **8080/tcp** entry, you can change the host port from `8080` to any other available port (e.g., `8888`).
 3. Click **Save** and restart the add-on.
 
+### SSL Configuration
+
+You can use your system-wide SSL certificates (e.g., from Let's Encrypt) with RomM:
+
+1. Ensure your certificates are in the `/ssl` directory of your Home Assistant installation.
+2. In the add-on configuration, set `ssl` to `true`.
+3. Specify your `certfile` (default: `fullchain.pem`) and `keyfile` (default: `privkey.pem`).
+4. RomM will now be accessible via HTTPS on the configured port.
+
+**Note**: If you access RomM via **Ingress**, Home Assistant handles SSL automatically, and you do not need to enable this setting.
+
 ### Configuration Options
 
 - **library_path**: Path to your ROM library (default: `/share/romm/library`)
@@ -72,34 +104,37 @@ If you want to access RomM directly via a port:
   - If you don't provide one, a random key will be generated on each start
   - For persistence, generate one with: `openssl rand -hex 32`
 
-### External Database (Optional)
+### Database Configuration
 
-For better performance with large libraries, you can use an external MariaDB/MySQL database:
+RomM requires an external MariaDB/MySQL or PostgreSQL database. SQLite is not supported in recent versions of RomM.
 
-- **db_host**: Hostname or IP of your database server (e.g., `192.168.1.100` or `core-mariadb`)
+The easiest way to set this up is using the Home Assistant **MariaDB add-on**:
+
+1. Install the "MariaDB" add-on.
+2. Configure it with a database and user (see Prerequisites section).
+3. Set the following in RomM configuration:
+   - **db_host**: `core-mariadb`
+   - **db_name**: `romm`
+   - **db_user**: `romm-user`
+   - **db_passwd**: your chosen password
+
+Alternatively, you can use any external MySQL/MariaDB server:
+
+- **db_host**: Hostname or IP of your database server (e.g., `192.168.1.100`)
 - **db_name**: Database name (default: `romm`)
 - **db_user**: Database username (default: `romm-user`)
 - **db_passwd**: Database password
 
-**Note**: If you don't configure an external database, RomM will use SQLite which is stored in the addon's data directory.
+#### Setting up MariaDB (Manual External Server)
 
-#### Setting up MariaDB
+If you are NOT using the HASS add-on but a separate server:
 
-If you want to use the MariaDB add-on:
-
-1. Install the official "MariaDB" add-on from the Home Assistant add-on store
-2. Create a database for RomM:
-   ```sql
-   CREATE DATABASE romm;
-   CREATE USER 'romm-user'@'%' IDENTIFIED BY 'your-secure-password';
-   GRANT ALL PRIVILEGES ON romm.* TO 'romm-user'@'%';
-   FLUSH PRIVILEGES;
-   ```
-3. Configure RomM with:
-   - db_host: `core-mariadb`
-   - db_name: `romm`
-   - db_user: `romm-user`
-   - db_passwd: `your-secure-password`
+```sql
+CREATE DATABASE romm;
+CREATE USER 'romm-user'@'%' IDENTIFIED BY 'your-secure-password';
+GRANT ALL PRIVILEGES ON romm.* TO 'romm-user'@'%';
+FLUSH PRIVILEGES;
+```
 
 ### Metadata Providers (Optional)
 

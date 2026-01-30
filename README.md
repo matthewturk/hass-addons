@@ -50,13 +50,12 @@ To deploy this add-on locally without using GitHub:
 
 The add-on can be configured through the Home Assistant UI. Key configuration options include:
 
-- **ROM Library Path**: Where your ROM files are stored
+- **Database Settings**: **Required**. A MariaDB/MySQL database is necessary. The Home Assistant MariaDB add-on is the easiest way to fulfill this.
+- **ROM Library Path**: Where your ROM files are stored (supports `/share`, `/media`, etc.)
 - **Assets Path**: Where saves, states, and other assets are stored
-- **Network Port**: By default, it uses port 8080. You can change this in the **Network** tab of the add-on settings if you want to use a different port for direct access.
-- **Database Settings**: Optional external database configuration
-- **API Keys**: Optional metadata provider API keys for enhanced functionality
-
-For detailed configuration instructions, see the [add-on documentation](./romm/DOCS.md).
+- **Network Port**: By default, it uses port 8080. You can change this in the **Network** tab of the add-on settings or use **Ingress** to access it via the sidebar.
+- **SSL Support**: Optionally use your own certificates for direct HTTPS access.
+- **API Keys**: Optional metadata provider API keys for enhanced functionality (ScreenScraper, etc.)
 
 ## Support
 
