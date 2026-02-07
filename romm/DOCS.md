@@ -87,22 +87,26 @@ You can use your system-wide SSL certificates (e.g., from Let's Encrypt) with Ro
 
 ### Configuration Options
 
-- **library_path**: Path to your ROM library (default: `/share/romm/library`)
+- **library_path**: Path to your ROM library (default: `/media/romm/library`)
   - This is where you should place your ROM files
   - **Supported paths**: `/share/`, `/media/`, or `/config/` (with any subpath)
   - **Examples**:
-    - `/share/romm/library` (default)
+    - `/media/romm/library` (default)
+    - `/share/romm/library`
     - `/media/usb_drive/roms` (external drive)
-    - `/media/network_share/games` (network storage)
     - `/config/roms` (config directory)
-- **assets_path**: Path to store assets like saves and states (default: `/share/romm/assets`)
-  - RomM will store uploaded saves, states, and other user data here
+- **assets_path**: Path to store assets like covers, screenshots, saves and states (default: `/media/romm/assets`)
+  - RomM will store uploaded saves, states, downloaded covers, and other metadata resources here.
+  - By using a path in `/media/`, your covers and media will also be accessible via the Home Assistant Media Browser.
   - **Supported paths**: `/share/`, `/media/`, or `/config/` (with any subpath)
   - Can be on a different mount than library_path
-- **config_path**: Path to the RomM configuration file (default: `/share/romm/config.yml`)
+- **resources_path**: Path to store metadata resources like covers, screenshots, and backgrounds (default: `/media/romm/resources`)
+  - This is where RomM stores all downloaded metadata from ScreenScraper, etc.
+  - **Supported paths**: `/share/`, `/media/`, or `/config/` (with any subpath)
+- **config_path**: Path to the RomM configuration file (default: `/config/romm/config.yml`)
   - This allows you to edit advanced RomM settings (like netplay, controller mapping) directly in a YAML file
   - **Supported paths**: `/share/`, `/media/`, or `/config/` (with any subpath)
-  - You can use `/config/romm/config.yml` to make it editable via the Home Assistant File Editor add-on.
+  - Using `/config/` (the default) makes it easily editable via the Home Assistant File Editor or VS Code add-ons.
 - **auth_secret_key**: Secret key for authentication (leave empty to auto-generate)
   - Used to encrypt authentication tokens
   - If you don't provide one, a random key will be generated on each start
@@ -153,6 +157,8 @@ Configure API keys for metadata providers to enhance your library:
   - Get your key from https://www.steamgriddb.com/
 - **hasheous_api_enabled**: Enable Hasheous metadata provider (default: true)
   - No API key required
+- **launchbox_api_enabled**: Enable LaunchBox metadata provider (default: false)
+  - No API key required for basic integration
 
 For more information on metadata providers, see: https://docs.romm.app/latest/Getting-Started/Metadata-Providers/
 
@@ -175,7 +181,8 @@ Place your ROMs in the configured library path following this structure:
 
 **Examples of library_path configurations:**
 
-- Default: `/share/romm/library/`
+- Default: `/media/romm/library/`
+- Shared folder: `/share/romm/library/`
 - External USB drive: `/media/usb_drive/roms/`
 - Network share: `/media/nas/gaming/roms/`
 - Config directory: `/config/roms/`
