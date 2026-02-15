@@ -50,6 +50,21 @@ RUN curl -sSL -o /tmp/bashio.tar.gz \
     && chmod a+x /usr/bin/bashio \
     && rm -rf /tmp/*
 
+# Apply rommdosbox.patch to compiled frontend (adds dosbox-pure-conf: inside)
+RUN echo "Searching for frontend file to patch..." \
+    && target_file=$(grep -rFl '"save-state-location":"browser"' /romm/frontend/dist /app/frontend/dist /var/www /usr/share/nginx/html 2>/dev/null | head -n 1 || true) \
+    && if [ -z "$target_file" ]; then \
+    echo "Target not found in common paths, searching /..." \
+    && target_file=$(find / -name "*.js" -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" -exec grep -l '"save-state-location":"browser"' {} + | head -n 1 || true); \
+    fi \
+    && if [ -n "$target_file" ]; then \
+    echo "Patching $target_file"; \
+    sed -i 's/"save-state-location":"browser"/"save-state-location":"browser","dosbox-pure-conf":"inside"/g' "$target_file"; \
+    else \
+    echo "Error: Could not find file to patch for dosbox-pure-conf"; \
+    exit 1; \
+    fi
+
 # Copy root filesystem (including s6 service scripts)
 COPY rootfs /
 
