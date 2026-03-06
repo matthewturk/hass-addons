@@ -51,6 +51,7 @@ WORKDIR /var/www/localhost/htdocs
 COPY --from=composer /app /var/www/localhost/htdocs
 RUN mkdir -p /var/www/localhost/htdocs/data \
     && rm -f /var/www/localhost/htdocs/index.html \
+    && sed -i 's/if ($dbConfig && strpos($dbConfig, $rootDir) === 0)/if ($dbConfig)/' /var/www/localhost/htdocs/src/Lotgd/Doctrine/Bootstrap.php \
     && chown -R apache:apache /var/www/localhost/htdocs \
     && chmod -R 777 /var/www/localhost/htdocs/data
 

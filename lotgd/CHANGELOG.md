@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.3
+
+- Fix: Patch `Bootstrap.php` to allow `dbconnect.php` to be outside the root directory (linked).
+
 ## 1.0.2
 
 - Fix: Persist `dbconnect.php` in `/data` so it survives updates.
