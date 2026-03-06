@@ -1,0 +1,8 @@
+#!/usr/bin/with-contenv bashio
+# https://developers.home-assistant.io/docs/add-ons/configuration#add-on-service
+bashio::log.info "Starting Apache..."
+
+# Redirect apache logs to stdout/stderr is already done via symlinks in Dockerfile
+# But we can also use bashio for specific messages.
+
+exec /usr/sbin/httpd -D FOREGROUND
