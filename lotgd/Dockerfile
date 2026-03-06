@@ -49,7 +49,9 @@ RUN sed -i 's/#LoadModule rewrite_module/LoadModule rewrite_module/' /etc/apache
 # Set up app directory
 WORKDIR /var/www/localhost/htdocs
 COPY --from=composer /app /var/www/localhost/htdocs
-RUN chown -R apache:apache /var/www/localhost/htdocs \
+RUN mkdir -p /var/www/localhost/htdocs/data \
+    && rm -f /var/www/localhost/htdocs/index.html \
+    && chown -R apache:apache /var/www/localhost/htdocs \
     && chmod -R 777 /var/www/localhost/htdocs/data
 
 # Copy root filesystem

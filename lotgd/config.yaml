@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
 name: Legend of the Green Dragon
-version: "1.0.0"
+version: "1.0.1"
 slug: lotgd
 description: Remake of the classic Legend of the Green Dragon RPG.
 url: "https://github.com/NB-Core/lotgd"
@@ -27,4 +27,4 @@ schema:
   db_user: str
   db_password: password
   db_use_data_cache: bool
-image: "ghcr.io/nb-core/{arch}-addon-lotgd"
+    #image: "ghcr.io/nb-core/{arch}-addon-lotgd"
