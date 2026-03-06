@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.2
+
+- Fix: Persist `dbconnect.php` in `/data` so it survives updates.
+
 ## 1.0.1
 
 - Fix: Ensure `data` directory exists and has correct permissions.
