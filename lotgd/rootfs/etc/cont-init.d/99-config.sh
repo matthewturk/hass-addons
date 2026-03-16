@@ -4,6 +4,14 @@
 # ==============================================================================
 bashio::log.info "Configuring Legend of the Green Dragon..."
 
+# Set timezone
+if [ -n "${TZ}" ]; then
+    bashio::log.info "Setting timezone to ${TZ}"
+    cp "/usr/share/zoneinfo/${TZ}" /etc/localtime
+    echo "${TZ}" > /etc/timezone
+    echo "date.timezone=${TZ}" > /etc/php83/conf.d/00_timezone.ini
+fi
+
 # Generate .env file
 tempio \
     -conf /data/options.json \

@@ -35,7 +35,8 @@ RUN apk add --no-cache \
     php83-intl \
     php83-xsl \
     git \
-    curl
+    curl \
+    tzdata
 
 # Configure Apache
 RUN sed -i 's/#LoadModule rewrite_module/LoadModule rewrite_module/' /etc/apache2/httpd.conf \
@@ -52,6 +53,7 @@ COPY --from=composer /app /var/www/localhost/htdocs
 RUN mkdir -p /var/www/localhost/htdocs/data \
     && rm -f /var/www/localhost/htdocs/index.html \
     && sed -i 's/if ($dbConfig && strpos($dbConfig, $rootDir) === 0)/if ($dbConfig)/' /var/www/localhost/htdocs/src/Lotgd/Doctrine/Bootstrap.php \
+    && sed -i "s/file_exists('installer.php')/false/" /var/www/localhost/htdocs/common.php \
     && chown -R apache:apache /var/www/localhost/htdocs \
     && chmod -R 777 /var/www/localhost/htdocs/data
 

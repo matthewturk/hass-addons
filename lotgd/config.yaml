@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
 name: Legend of the Green Dragon
-version: "1.0.3"
+version: "1.0.7"
 slug: lotgd
 description: Remake of the classic Legend of the Green Dragon RPG.
 url: "https://github.com/NB-Core/lotgd"
@@ -14,7 +14,7 @@ map:
 ports:
   80/tcp: 80
 ingress: true
-panel_icon: mdi:sword-cross
+panel_icon: mdi:dragon
 options:
   db_host: core-mariadb
   db_name: lotgd
