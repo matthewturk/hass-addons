@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
 name: ABS Metadata Server
-version: "1.0.0"
+version: "1.0.4"
 slug: abs-metadata
 description: >-
   A metadata server for Audiobookshelf that matches book filenames to records
@@ -13,6 +13,7 @@ arch:
   - armv7
   - i386
 init: false
+apparmor: true
 map:
   - media:ro
   - config:ro
@@ -36,4 +37,4 @@ schema:
   images_dirs:
     - "str"
   track_missing: bool
-image: "ghcr.io/matthewturk/{arch}-addon-abs-metadata"
+    #image: "ghcr.io/matthewturk/{arch}-addon-abs-metadata"
