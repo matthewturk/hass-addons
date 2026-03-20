@@ -1,0 +1,34 @@
+configuration:
+  port:
+    name: Port
+    description: >-
+      The port the metadata server listens on inside the container.
+      Other Home Assistant add-ons (e.g. Audiobookshelf) can reach the server at
+      http://<HA-host>:<port>/search?query={{title}}.
+  expose_externally:
+    name: Expose externally
+    description: >-
+      When enabled, also enable port forwarding in the Network tab of this
+      add-on so that devices outside the Home Assistant host (e.g. an
+      Audiobookshelf instance on a different machine) can reach the server.
+      When disabled, the server is accessible only from other add-ons on the
+      Home Assistant internal Docker network.
+  metadata_sources:
+    name: Metadata sources
+    description: >-
+      A list of paths under /media or /config that contain .json or .csv
+      metadata files (or directories of such files).  Each file is symlinked
+      into an add-on-managed staging directory so that the server can read them
+      while all writes remain in the add-on's own /data directory.
+  images_dirs:
+    name: Cover image directories
+    description: >-
+      A list of directories under /media or /config that contain cover-image
+      files (.png, .jpg, .jpeg, .webp).  Images from all listed directories are
+      made available to the server via symlinks in /data/images.
+  track_missing:
+    name: Track missing metadata
+    description: >-
+      When enabled, queries that return no results are recorded in
+      /data/metadata/missing_metadata.json as template entries, making it easy
+      to identify and fill gaps in your metadata files.

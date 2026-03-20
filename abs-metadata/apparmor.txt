@@ -1,0 +1,81 @@
+#include <tunables/global>
+
+profile abs-metadata flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  # Capabilities
+  file,
+  signal (send) set=(kill,term,int,hup,cont),
+
+  # S6-Overlay
+  /init ix,
+  /bin/** ix,
+  /usr/bin/** ix,
+  /run/{s6,s6-rc*,service}/** ix,
+  /package/** ix,
+  /command/** ix,
+  /etc/services.d/** rwix,
+  /etc/cont-init.d/** rwix,
+  /etc/cont-finish.d/** rwix,
+  /run/{,**} rwk,
+  /dev/tty rw,
+
+  # Bashio
+  /usr/lib/bashio/** ix,
+  /tmp/** rwk,
+
+  # Add-on data directory – the only location where files are written.
+  # missing_metadata.json is written here by abs_mdserver.
+  /data/** rw,
+
+  # Python and abs_mdserver source (read-only)
+  /opt/abs_mdserver/** r,
+  /usr/lib/python3*/** r,
+  /usr/lib/python3*/ r,
+
+  # Read-only mounts: metadata sources and cover image directories
+  /media/** r,
+  /config/** r,
+
+  # Start new profile for the Python metadata server
+  /usr/bin/python3* cx -> abs_metadata_server,
+  /usr/bin/python3 cx -> abs_metadata_server,
+
+  profile abs_metadata_server flags=(attach_disconnected,mediate_deleted) {
+    #include <abstractions/base>
+
+    # Receive signals from S6-Overlay
+    signal (receive) peer=*_abs-metadata,
+
+    # Add-on data directory – read/write for missing_metadata.json and symlinks
+    /data/** rw,
+
+    # Python runtime and abs_mdserver source
+    /opt/abs_mdserver/** r,
+    /usr/lib/python3*/{,**} r,
+    /usr/bin/python3* r,
+    /usr/lib/libpython3* mr,
+
+    # Flask / Werkzeug needs /tmp for some operations
+    /tmp/** rwk,
+
+    # Read-only mounts (CSV/JSON and cover images accessed via symlinks in /data)
+    /media/** r,
+    /config/** r,
+
+    # Network access for the Flask HTTP server
+    network tcp,
+    network udp,
+
+    # Misc system files needed by Python
+    /etc/passwd r,
+    /etc/hosts r,
+    /etc/resolv.conf r,
+    /proc/sys/net/** r,
+    /dev/tty rw,
+    /dev/null rw,
+    /dev/urandom r,
+    /proc/*/status r,
+    /proc/*/maps r,
+  }
+}

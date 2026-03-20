@@ -1,0 +1,165 @@
+#!/usr/bin/with-contenv bashio
+# ==============================================================================
+# Start the ABS Metadata Server service
+# s6-overlay docs: https://github.com/just-containers/s6-overlay
+# ==============================================================================
+
+# ---------------------------------------------------------------------------
+# Helper: resolve and validate that a path is under an allowed parent.
+# Uses `realpath -e` so the path must already exist AND all symlinks in it
+# are resolved, preventing symlink-based traversal attacks.
+# Writes go to /data only; source paths must be under /media or /config.
+# ---------------------------------------------------------------------------
+validate_source_path() {
+    local raw_path="$1"
+    local real_path
+
+    real_path="$(realpath -e -- "${raw_path}" 2>/dev/null)" || {
+        bashio::log.error "Path '${raw_path}' does not exist or cannot be resolved. Skipping."
+        return 1
+    }
+
+    # Only allow /media and /config as source roots.
+    if [[ "${real_path}" != /media/* ]] && [[ "${real_path}" != /config/* ]]; then
+        bashio::log.error "Path '${raw_path}' (resolved: '${real_path}') is not under /media or /config. Skipping."
+        return 1
+    fi
+
+    printf '%s' "${real_path}"
+}
+
+# ---------------------------------------------------------------------------
+# Helper: validate a filename component is safe to use as a symlink name
+# inside a target directory.  Rejects names containing slashes, dots-only
+# names (. / ..), and names that start with a dash (which could be
+# misinterpreted as flags).
+# ---------------------------------------------------------------------------
+validate_filename() {
+    local filename="$1"
+    if [[ "${filename}" == */* ]] \
+       || [[ "${filename}" == "." ]] \
+       || [[ "${filename}" == ".." ]] \
+       || [[ "${filename}" == -* ]]; then
+        return 1
+    fi
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# Helper: create a symlink in a target directory, checking for duplicates.
+# Usage: link_file <source_absolute_path> <target_dir> <description>
+# ---------------------------------------------------------------------------
+link_file() {
+    local src="$1"
+    local target_dir="$2"
+    local description="$3"
+    local filename
+    filename="$(basename -- "${src}")"
+
+    if ! validate_filename "${filename}"; then
+        bashio::log.warning "Skipping ${description} with suspicious filename: '${filename}'"
+        return
+    fi
+
+    local target="${target_dir}/${filename}"
+    if [[ -e "${target}" ]]; then
+        bashio::log.warning "Duplicate ${description} '${filename}' – skipping '${src}'"
+        return
+    fi
+
+    ln -sf -- "${src}" "${target}"
+    bashio::log.info "  Linked ${description}: ${filename}"
+}
+
+# ---------------------------------------------------------------------------
+# Read configuration
+# ---------------------------------------------------------------------------
+declare port
+declare expose_externally
+declare track_missing
+
+port=$(bashio::config 'port')
+expose_externally=$(bashio::config 'expose_externally')
+track_missing=$(bashio::config 'track_missing')
+
+bashio::log.info "Starting ABS Metadata Server on port ${port}"
+bashio::log.info "Expose externally: ${expose_externally}"
+bashio::log.info "Track missing: ${track_missing}"
+
+# ---------------------------------------------------------------------------
+# Prepare /data/metadata and /data/images (add-on-specific, writable).
+# All writes by abs_mdserver (missing_metadata.json) stay in /data/metadata.
+# ---------------------------------------------------------------------------
+mkdir -p /data/metadata
+mkdir -p /data/images
+
+# Remove stale symlinks from previous runs so we rebuild a clean view.
+find /data/metadata -maxdepth 1 -type l -delete
+find /data/images   -maxdepth 1 -type l -delete
+
+# ---------------------------------------------------------------------------
+# Populate /data/metadata with symlinks to user-configured CSV/JSON sources.
+# Each entry in metadata_sources may be a file (.csv / .json) or a directory.
+# ---------------------------------------------------------------------------
+if bashio::config.has_value 'metadata_sources'; then
+    while IFS= read -r raw_src; do
+        src="$(validate_source_path "${raw_src}")" || continue
+
+        if [[ -d "${src}" ]]; then
+            bashio::log.info "Scanning metadata directory: ${src}"
+            while IFS= read -r -d '' item; do
+                link_file "${item}" /data/metadata "metadata file"
+            done < <(find "${src}" -maxdepth 1 -type f \( -iname '*.json' -o -iname '*.csv' \) -print0)
+        elif [[ -f "${src}" ]]; then
+            ext="${src##*.}"
+            ext="${ext,,}"
+            if [[ "${ext}" == "json" ]] || [[ "${ext}" == "csv" ]]; then
+                link_file "${src}" /data/metadata "metadata file"
+            else
+                bashio::log.warning "Source '${src}' is not a .json or .csv file – skipping."
+            fi
+        else
+            bashio::log.warning "Metadata source '${src}' is neither a file nor a directory – skipping."
+        fi
+    done < <(bashio::config 'metadata_sources' | jq -r '.[]')
+fi
+
+# ---------------------------------------------------------------------------
+# Populate /data/images with symlinks to image files from all configured
+# images_dirs entries (under /media or /config).
+# ---------------------------------------------------------------------------
+if bashio::config.has_value 'images_dirs'; then
+    while IFS= read -r raw_dir; do
+        img_dir="$(validate_source_path "${raw_dir}")" || continue
+
+        if [[ ! -d "${img_dir}" ]]; then
+            bashio::log.warning "Images directory '${img_dir}' does not exist – skipping."
+            continue
+        fi
+
+        bashio::log.info "Scanning images directory: ${img_dir}"
+        while IFS= read -r -d '' img; do
+            link_file "${img}" /data/images "image"
+        done < <(find "${img_dir}" -maxdepth 1 -type f \
+            \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) \
+            -print0)
+    done < <(bashio::config 'images_dirs' | jq -r '.[]')
+fi
+
+bashio::log.info "Metadata files in /data/metadata: $(find /data/metadata -maxdepth 1 -type l | wc -l)"
+bashio::log.info "Image files in /data/images: $(find /data/images -maxdepth 1 -type l | wc -l)"
+
+# ---------------------------------------------------------------------------
+# Build argument list and launch the server.
+# ---------------------------------------------------------------------------
+declare -a server_args
+server_args+=(--port "${port}")
+server_args+=(--metadata-dir /data/metadata)
+server_args+=(--images-dir /data/images)
+
+if bashio::var.true "${track_missing}"; then
+    server_args+=(--track-missing)
+fi
+
+bashio::log.info "Launching ABS Metadata Server..."
+exec python3 /usr/bin/abs_metadata_server.py "${server_args[@]}"
