@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
 name: ABS Metadata Server
-version: "1.0.5"
+version: "1.0.10"
 slug: abs-metadata
 description: >-
   A metadata server for Audiobookshelf that matches book filenames to records
@@ -18,7 +18,7 @@ map:
   - media:ro
   - config:ro
 ports:
-  5000/tcp: null
+  5000/tcp: 5000
 ports_description:
   5000/tcp: >-
     Metadata server HTTP port. Enable port forwarding here to expose the server
@@ -26,17 +26,15 @@ ports_description:
 options:
   port: 5000
   expose_externally: false
-  metadata_sources: []
-  images_dirs: []
+  metadata_sources: ""
+  images_dirs: ""
   files_list: ""
   track_missing: false
 schema:
   port: int
   expose_externally: bool
   files_list: str
-  metadata_sources:
-    - "str"
-  images_dirs:
-    - "str"
+  metadata_sources: str
+  images_dirs: str
   track_missing: bool
     #image: "ghcr.io/matthewturk/{arch}-addon-abs-metadata"

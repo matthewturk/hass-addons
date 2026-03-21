@@ -36,11 +36,18 @@ def main():
     parser.add_argument("--track-missing", action="store_true")
     args = parser.parse_args()
 
-    loader = MetadataLoader(args.metadata_dir, args.images_dir, file_list=args.file_list)
+    # Create the loader with base directories.
+    loader = MetadataLoader(args.metadata_dir, args.images_dir)
     loader.index_images()
     loader.load_all_metadata()
 
+    # Create the matcher
     matcher = MetadataMatcher(loader)
+
+    # If a file list was provided, load and pre-match it now.
+    if args.file_list:
+        loader.load_file_list(args.file_list, matcher)
+
     app = create_app(loader, matcher, track_missing=args.track_missing)
 
     # Always bind to 0.0.0.0 so other add-ons on the HA internal Docker network

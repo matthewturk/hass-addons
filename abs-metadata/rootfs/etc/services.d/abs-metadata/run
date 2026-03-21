@@ -6,22 +6,37 @@
 
 # ---------------------------------------------------------------------------
 # Helper: resolve and validate that a path is under an allowed parent.
-# Uses `realpath -e` so the path must already exist AND all symlinks in it
-# are resolved, preventing symlink-based traversal attacks.
+# Uses `python3` for robust path resolution (handles symlinks).
 # Writes go to /data only; source paths must be under /media or /config.
 # ---------------------------------------------------------------------------
 validate_source_path() {
     local raw_path="$1"
     local real_path
 
-    real_path="$(realpath -e -- "${raw_path}" 2>/dev/null)" || {
-        bashio::log.error "Path '${raw_path}' does not exist or cannot be resolved. Skipping."
+    # Use Python to resolve the path (realpath).
+    if ! real_path="$(python3 -c "import os, sys; print(os.path.realpath(sys.argv[1]))" "${raw_path}")"; then
+        bashio::log.error "Path resolution failed for '${raw_path}' using Python."
         return 1
-    }
+    fi
 
     # Only allow /media and /config as source roots.
     if [[ "${real_path}" != /media/* ]] && [[ "${real_path}" != /config/* ]]; then
         bashio::log.error "Path '${raw_path}' (resolved: '${real_path}') is not under /media or /config. Skipping."
+        return 1
+    fi
+
+    # Explicitly check for existence after resolution
+    if [[ ! -e "${real_path}" ]]; then
+        bashio::log.error "Path '${raw_path}' (resolved: '${real_path}') does not exist."
+        # Optional: Print directory listing of parent to debug permissions/mounts (helps user debug)
+        local parent_dir
+        parent_dir=$(dirname "${real_path}")
+        if [[ -d "${parent_dir}" ]]; then
+             bashio::log.debug "Listing of ${parent_dir}:"
+             ls -ld "${parent_dir}" || true
+        else
+             bashio::log.debug "Parent directory ${parent_dir} does not exist."
+        fi
         return 1
     fi
 
@@ -102,26 +117,29 @@ find /data/images   -maxdepth 1 -type l -delete
 # Each entry in metadata_sources may be a file (.csv / .json) or a directory.
 # ---------------------------------------------------------------------------
 if bashio::config.has_value 'metadata_sources'; then
-    while IFS= read -r raw_src; do
-        src="$(validate_source_path "${raw_src}")" || continue
+    raw_src=$(bashio::config 'metadata_sources')
+    if [[ -n "${raw_src}" ]]; then
+        src="$(validate_source_path "${raw_src}")"
 
-        if [[ -d "${src}" ]]; then
-            bashio::log.info "Scanning metadata directory: ${src}"
-            while IFS= read -r -d '' item; do
-                link_file "${item}" /data/metadata "metadata file"
-            done < <(find "${src}" -maxdepth 1 -type f \( -iname '*.json' -o -iname '*.csv' \) -print0)
-        elif [[ -f "${src}" ]]; then
-            ext="${src##*.}"
-            ext="${ext,,}"
-            if [[ "${ext}" == "json" ]] || [[ "${ext}" == "csv" ]]; then
-                link_file "${src}" /data/metadata "metadata file"
+        if [[ $? -eq 0 ]]; then
+            if [[ -d "${src}" ]]; then
+                bashio::log.info "Scanning metadata directory: ${src}"
+                while IFS= read -r -d '' item; do
+                    link_file "${item}" /data/metadata "metadata file"
+                done < <(find "${src}" -maxdepth 1 -type f \( -iname '*.json' -o -iname '*.csv' \) -print0)
+            elif [[ -f "${src}" ]]; then
+                ext="${src##*.}"
+                ext="${ext,,}"
+                if [[ "${ext}" == "json" ]] || [[ "${ext}" == "csv" ]]; then
+                    link_file "${src}" /data/metadata "metadata file"
+                else
+                    bashio::log.warning "Source '${src}' is not a .json or .csv file – skipping."
+                fi
             else
-                bashio::log.warning "Source '${src}' is not a .json or .csv file – skipping."
+                bashio::log.warning "Metadata source '${src}' is neither a file nor a directory – skipping."
             fi
-        else
-            bashio::log.warning "Metadata source '${src}' is neither a file nor a directory – skipping."
         fi
-    done < <(bashio::config 'metadata_sources' | jq -r '.[]')
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -129,21 +147,24 @@ fi
 # images_dirs entries (under /media or /config).
 # ---------------------------------------------------------------------------
 if bashio::config.has_value 'images_dirs'; then
-    while IFS= read -r raw_dir; do
-        img_dir="$(validate_source_path "${raw_dir}")" || continue
+    raw_dir=$(bashio::config 'images_dirs')
+    # Validate scalar directory path if present and not empty
+    if [[ -n "${raw_dir}" ]]; then
+        img_dir="$(validate_source_path "${raw_dir}")"
 
-        if [[ ! -d "${img_dir}" ]]; then
-            bashio::log.warning "Images directory '${img_dir}' does not exist – skipping."
-            continue
+        if [[ $? -eq 0 ]]; then
+            if [[ ! -d "${img_dir}" ]]; then
+                bashio::log.warning "Images directory '${img_dir}' does not exist – skipping."
+            else
+                bashio::log.info "Scanning images directory: ${img_dir}"
+                while IFS= read -r -d '' img; do
+                    link_file "${img}" /data/images "image"
+                done < <(find "${img_dir}" -maxdepth 1 -type f \
+                    \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) \
+                    -print0)
+            fi
         fi
-
-        bashio::log.info "Scanning images directory: ${img_dir}"
-        while IFS= read -r -d '' img; do
-            link_file "${img}" /data/images "image"
-        done < <(find "${img_dir}" -maxdepth 1 -type f \
-            \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) \
-            -print0)
-    done < <(bashio::config 'images_dirs' | jq -r '.[]')
+    fi
 fi
 
 bashio::log.info "Metadata files in /data/metadata: $(find /data/metadata -maxdepth 1 -type l | wc -l)"

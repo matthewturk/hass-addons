@@ -14,17 +14,17 @@ configuration:
       When disabled, the server is accessible only from other add-ons on the
       Home Assistant internal Docker network.
   metadata_sources:
-    name: Metadata sources
+    name: Metadata source
     description: >-
-      A list of paths under /media or /config that contain .json or .csv
-      metadata files (or directories of such files).  Each file is symlinked
+      A path under /media or /config that contains .json or .csv
+      metadata files (or a directory of such files).  Each file is symlinked
       into an add-on-managed staging directory so that the server can read them
       while all writes remain in the add-on's own /data directory.
   images_dirs:
-    name: Cover image directories
+    name: Cover image directory
     description: >-
-      A list of directories under /media or /config that contain cover-image
-      files (.png, .jpg, .jpeg, .webp).  Images from all listed directories are
+      A directory under /media or /config that contains cover-image
+      files (.png, .jpg, .jpeg, .webp).  Images from this directory are
       made available to the server via symlinks in /data/images.
   track_missing:
     name: Track missing metadata
