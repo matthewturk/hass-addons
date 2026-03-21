@@ -32,10 +32,11 @@ def main():
     parser.add_argument("--port", type=int, default=5000)
     parser.add_argument("--metadata-dir", default="/data/metadata")
     parser.add_argument("--images-dir", default="/data/images")
+    parser.add_argument("--file-list")
     parser.add_argument("--track-missing", action="store_true")
     args = parser.parse_args()
 
-    loader = MetadataLoader(args.metadata_dir, args.images_dir)
+    loader = MetadataLoader(args.metadata_dir, args.images_dir, file_list=args.file_list)
     loader.index_images()
     loader.load_all_metadata()
 

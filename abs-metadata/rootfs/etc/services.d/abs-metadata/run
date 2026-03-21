@@ -157,6 +157,12 @@ server_args+=(--port "${port}")
 server_args+=(--metadata-dir /data/metadata)
 server_args+=(--images-dir /data/images)
 
+if bashio::config.has_value 'files_list'; then
+    files_list=$(bashio::config 'files_list')
+    validated_files_list="$(validate_source_path "${files_list}")" || exit 1
+    server_args+=(--file-list "${validated_files_list}")
+fi
+
 if bashio::var.true "${track_missing}"; then
     server_args+=(--track-missing)
 fi

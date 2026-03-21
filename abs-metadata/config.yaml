@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
 name: ABS Metadata Server
-version: "1.0.4"
+version: "1.0.5"
 slug: abs-metadata
 description: >-
   A metadata server for Audiobookshelf that matches book filenames to records
@@ -28,10 +28,12 @@ options:
   expose_externally: false
   metadata_sources: []
   images_dirs: []
+  files_list: ""
   track_missing: false
 schema:
   port: int
   expose_externally: bool
+  files_list: str
   metadata_sources:
     - "str"
   images_dirs:
