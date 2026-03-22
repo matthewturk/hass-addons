@@ -1,0 +1,40 @@
+configuration:
+  server_name:
+    name: Server Name
+    description: The name displayed to players in the server list.
+  server_description:
+    name: Server Description
+    description: A short description of the server shown in the server list.
+  server_port:
+    name: Server Port
+    description: The UDP port the server listens on (default 30000).
+  max_users:
+    name: Maximum Players
+    description: The maximum number of players that can connect simultaneously (1–100).
+  server_password:
+    name: Server Password
+    description: Password required to join the server. Leave empty for no password.
+  enable_pvp:
+    name: Enable PvP
+    description: Allow players to attack each other (Player vs. Player).
+  enable_damage:
+    name: Enable Damage
+    description: Allow players to take damage and die.
+  creative_mode:
+    name: Creative Mode
+    description: Enable creative mode where players have unlimited resources.
+  time_speed:
+    name: Time Speed
+    description: How fast in-game time passes. 72 equals one day per 20 real minutes. Set to 0 to disable the day/night cycle.
+  motd:
+    name: Message of the Day
+    description: Message displayed to players when they join the server.
+  world_name:
+    name: World Name
+    description: The name of the world to load or create (stored in /data/worlds/).
+  gameid:
+    name: Game ID
+    description: The game to run (default minetest). Must match a game installed in /usr/share/luanti/games/ or /share/luanti/games/.
+  disallow_empty_password:
+    name: Require Password
+    description: Prevent players from connecting with an empty password.

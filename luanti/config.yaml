@@ -1,0 +1,45 @@
+# https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
+name: Luanti Server
+version: "1.0.0"
+slug: luanti
+description: Host a Luanti (formerly Minetest) game server
+url: "https://github.com/matthewturk/hass-luanti/tree/main/luanti"
+arch:
+  - aarch64
+  - amd64
+init: false
+map:
+  - share:rw
+ports:
+  30000/udp: 30000
+ports_description:
+  30000/udp: Luanti game server port (UDP)
+options:
+  server_name: "My Luanti Server"
+  server_description: "A Luanti server running on Home Assistant"
+  server_port: 30000
+  max_users: 15
+  server_password: ""
+  enable_pvp: true
+  enable_damage: true
+  creative_mode: false
+  time_speed: 72
+  motd: ""
+  world_name: "world"
+  gameid: "minetest"
+  disallow_empty_password: false
+schema:
+  server_name: str
+  server_description: str
+  server_port: port
+  max_users: int(1,100)
+  server_password: "password?"
+  enable_pvp: bool
+  enable_damage: bool
+  creative_mode: bool
+  time_speed: int(0,4096)
+  motd: "str?"
+  world_name: str
+  gameid: str
+  disallow_empty_password: bool
+image: "ghcr.io/matthewturk/{arch}-addon-luanti"
