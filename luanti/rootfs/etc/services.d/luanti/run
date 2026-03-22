@@ -1,0 +1,34 @@
+#!/usr/bin/with-contenv bashio
+# shellcheck shell=bash
+# ==============================================================================
+# Start the Luanti game server
+# s6-overlay docs: https://github.com/just-containers/s6-overlay
+# ==============================================================================
+
+declare world_name
+declare luanti_bin
+
+world_name=$(bashio::config 'world_name')
+
+# Validate world_name to prevent path traversal attacks
+if [[ ! "${world_name}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    bashio::log.fatal "Invalid world_name '${world_name}': only letters, digits, hyphens and underscores are allowed."
+    exit 1
+fi
+
+# Locate the server binary (name changed when Minetest was renamed to Luanti)
+if command -v luantiserver > /dev/null 2>&1; then
+    luanti_bin="luantiserver"
+elif command -v minetestserver > /dev/null 2>&1; then
+    luanti_bin="minetestserver"
+else
+    bashio::log.fatal "Could not find a Luanti or Minetest server binary!"
+    exit 1
+fi
+
+bashio::log.info "Starting Luanti server with ${luanti_bin}..."
+bashio::log.info "World: /data/worlds/${world_name}"
+
+exec "${luanti_bin}" \
+    --world "/data/worlds/${world_name}" \
+    --config /data/luanti.conf
