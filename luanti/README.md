@@ -18,19 +18,14 @@ directly from Home Assistant.
 - Persistent world storage in the add-on `/data` directory
 - Mod and game support via the `/share/luanti/` directory
 - Compatible with standard Luanti/Minetest clients
-- **High-performance database:** Connects to the Home Assistant PostgreSQL add-on
-  for significantly better performance than SQLite3 on SD cards or limited storage.
 
 ## Installation
 
 1. Add this repository to your Home Assistant add-on store.
-2. Add the [Expaso add-ons repository](https://github.com/expaso/hassos-addons) to your add-on store:
-   `https://github.com/expaso/hassos-addons`
-3. Install the **TimescaleDB** add-on (which provides PostgreSQL) and start it.
-4. Install the **Luanti Server** add-on from this repository.
-5. Configure the server options in the add-on configuration tab.
-6. Start the add-on.
-7. Connect with your Luanti client to `<HA_IP>:30000`.
+2. Install the **Luanti Server** add-on from this repository.
+3. Configure the server options in the add-on configuration tab.
+4. Start the add-on.
+5. Connect with your Luanti client to `<HA_IP>:30000`.
 
 ## Adding Mods and Games
 

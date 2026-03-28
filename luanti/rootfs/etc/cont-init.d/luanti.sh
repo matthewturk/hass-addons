@@ -73,73 +73,12 @@ mkdir -p /share/luanti/games
     printf 'gamepath = /share/luanti/games\n'
 } > /data/luanti.conf
 
-# Check if we should use PostgreSQL (defaulting to enabled if service present)
-# The 'postgresql' service is required in config.yaml so bashio::services should work
-if bashio::services.available "postgresql"; then
-    host=$(bashio::services "postgresql" "host")
-    port=$(bashio::services "postgresql" "port")
-    username=$(bashio::services "postgresql" "username")
-    password=$(bashio::services "postgresql" "password")
-    # Use a safe database name
-    dbname="luanti_data"
-    
-    bashio::log.info "Configuring PostgreSQL connection..."
-    
-    # Ensure database exists
-    # Redirect stdout to /dev/null to avoid confusing logs, but keep errors
-    if ! PGPASSWORD="${password}" psql -h "${host}" -p "${port}" -U "${username}" -lqt | cut -d \| -f 1 | grep -qw "${dbname}"; then
-        bashio::log.info "Creating database '${dbname}'..."
-        PGPASSWORD="${password}" psql -h "${host}" -p "${port}" -U "${username}" -c "CREATE DATABASE \"${dbname}\"" >/dev/null
-    fi
-    
-    # We need to construct the connection string for world.mt
-    # NOTE: Minetest expects 'pgsql_connection' in world.mt, not minetest.conf usually, 
-    # but we can try to put defaults here or manage world.mt directly.
-    # Since world.mt is world-specific, we should check/create it.
-    
-    world_mt="/data/worlds/${world_name}/world.mt"
-    conn_str="host=${host} port=${port} user=${username} password=${password} dbname=${dbname}"
-    
-    if [ ! -f "${world_mt}" ]; then
-        bashio::log.info "Creating ${world_mt} with PostgreSQL backend..."
-        cat > "${world_mt}" <<EOF
-# generic backend setting
-backend = postgresql
-# specific backend settings
-auth_backend = postgresql
-player_backend = postgresql
-# connection strings
-pgsql_connection = ${conn_str}
-pgsql_auth_connection = ${conn_str}
-pgsql_player_connection = ${conn_str}
-gameid = ${game_id}
-world_name = ${world_name}
-EOF
-    else
-        bashio::log.warning "World config ${world_mt} already exists. Enforcing PostgreSQL backend..."
-        # Simple sed replacement to switch backend. Migration is NOT performed automatically here.
-        # Users must migrate manually if they have existing SQLite data.
-        sed -i "s/^backend = .*/backend = postgresql/" "${world_mt}"
-        sed -i "s/^auth_backend = .*/auth_backend = postgresql/" "${world_mt}"
-        sed -i "s/^player_backend = .*/player_backend = postgresql/" "${world_mt}"
-        
-        # Remove old connection strings if any and append new ones
-        sed -i "/^pgsql_connection/d" "${world_mt}"
-        sed -i "/^pgsql_auth_connection/d" "${world_mt}"
-        sed -i "/^pgsql_player_connection/d" "${world_mt}"
-        
-        printf "pgsql_connection = %s\n" "${conn_str}" >> "${world_mt}"
-        printf "pgsql_auth_connection = %s\n" "${conn_str}" >> "${world_mt}"
-        printf "pgsql_player_connection = %s\n" "${conn_str}" >> "${world_mt}"
-    fi
-else
-    bashio::log.warning "PostgreSQL service not available! Falling back to SQLite integration (not recommended)..."
-    {
-        printf '\n# SQLite settings\n'
-        # Use synchronous = 0 (OFF) to prevent "database is locked" errors on docker volumes
-        printf 'sqlite_synchronous = 0\n'
-    } >> /data/luanti.conf
-fi
+bashio::log.info "Using SQLite integration"
+{
+    printf '\n# SQLite settings\n'
+    # Use synchronous = 0 (OFF) to prevent "database is locked" errors on docker volumes
+    printf 'sqlite_synchronous = 0\n'
+} >> /data/luanti.conf
 
 # Append optional settings only when they have a non-empty value.
 # Strip newlines/carriage-returns to prevent config-file injection.

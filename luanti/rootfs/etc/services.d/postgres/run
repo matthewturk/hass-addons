@@ -1,4 +1,0 @@
-#!/usr/bin/with-contenv bashio
-# shellcheck shell=bash
-
-exec su-exec postgres postgres -D /data/postgres

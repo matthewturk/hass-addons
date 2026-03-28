@@ -44,7 +44,6 @@ Copy game directories into `/share/luanti/games/` and set the
 - World data is stored in `/data/worlds/<world_name>/` and persists across restarts.
 - The server configuration is regenerated from the add-on options on every start,
   so always use the Home Assistant UI to change settings.
-- **Database:** This add-on requires a **PostgreSQL** connection. The recommended provider is the **TimescaleDB** add-on from the Expaso repository (`https://github.com/expaso/hassos-addons`).
 
 ### Port Forwarding
 
