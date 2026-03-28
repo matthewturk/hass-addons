@@ -1,0 +1,433 @@
+#!/usr/bin/with-contenv bashio
+# ==============================================================================
+# Start the RomM service
+# s6-overlay docs: https://github.com/just-containers/s6-overlay
+# ==============================================================================
+
+bashio::log.info "Starting RomM..."
+
+# Declare variables
+declare db_host
+declare db_name
+declare db_user
+declare db_passwd
+declare auth_secret_key
+declare library_path
+declare assets_path
+declare resources_path
+declare config_path
+
+# Get configuration values
+db_host=$(bashio::config 'db_host')
+db_name=$(bashio::config 'db_name')
+db_user=$(bashio::config 'db_user')
+db_passwd=$(bashio::config 'db_passwd')
+auth_secret_key=$(bashio::config 'auth_secret_key')
+library_path=$(bashio::config 'library_path')
+assets_path=$(bashio::config 'assets_path')
+resources_path=$(bashio::config 'resources_path')
+config_path=$(bashio::config 'config_path')
+
+# Check for MariaDB service if not configured manually
+if [ -z "$db_host" ] && bashio::services.available 'mariadb'; then
+    bashio::log.info "MariaDB service detected. Using MariaDB add-on for database."
+    db_host=$(bashio::services 'mariadb' 'host')
+    db_name=$(bashio::config 'db_name') # Keep from config if set, otherwise default
+    db_user=$(bashio::services 'mariadb' 'username')
+    db_passwd=$(bashio::services 'mariadb' 'password')
+fi
+
+# Export environment variables for RomM
+if [ -n "$db_host" ]; then
+    export DB_HOST="${db_host}"
+    export DB_NAME="${db_name:-romm}"
+    export DB_USER="${db_user}"
+    export DB_PASSWD="${db_passwd}"
+    export ROMM_DB_DRIVER="mariadb"
+    bashio::log.info "Using database at ${db_host}"
+else
+    bashio::log.error "No database configured! RomM requires a MariaDB/MySQL or PostgreSQL database."
+    bashio::log.error "Please configure the database settings or install the MariaDB add-on."
+    bashio::exit.nok "Missing database configuration"
+fi
+
+# Set auth secret key
+if [ -n "$auth_secret_key" ]; then
+    export ROMM_AUTH_SECRET_KEY="${auth_secret_key}"
+else
+    bashio::log.warning "No 'auth_secret_key' provided in configuration."
+    bashio::log.warning "A random key will be generated, but sessions will reset when RomM restarts."
+    export ROMM_AUTH_SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
+fi
+
+# Set Gunicorn timeout to 300 seconds to allow for long Launchbox downloads
+export GUNICORN_CMD_ARGS="--timeout 300"
+
+# Debug logging configuration
+if bashio::config.true 'debug_enabled'; then
+    bashio::log.info "Enabling Deep Debug Logging..."
+    export ROMM_LOG_LEVEL="DEBUG"
+    export LOG_LEVEL="DEBUG"
+    # Combine with existing args
+    export GUNICORN_CMD_ARGS="${GUNICORN_CMD_ARGS} --log-level debug --capture-output --error-logfile -"
+fi
+
+# Export optional API keys
+screenscraper_user=$(bashio::config 'screenscraper_user')
+screenscraper_password=$(bashio::config 'screenscraper_password')
+if [ -n "$screenscraper_user" ] && [ -n "$screenscraper_password" ]; then
+    export SCREENSCRAPER_USER="${screenscraper_user}"
+    export SCREENSCRAPER_PASSWORD="${screenscraper_password}"
+    bashio::log.info "ScreenScraper configured"
+elif [ -n "$screenscraper_user" ]; then
+    bashio::log.warning "ScreenScraper user provided but password is missing"
+fi
+
+retroachievements_api_key=$(bashio::config 'retroachievements_api_key')
+if [ -n "$retroachievements_api_key" ]; then
+    export RETROACHIEVEMENTS_API_KEY="${retroachievements_api_key}"
+    bashio::log.info "RetroAchievements configured"
+fi
+
+steamgriddb_api_key=$(bashio::config 'steamgriddb_api_key')
+if [ -n "$steamgriddb_api_key" ]; then
+    export STEAMGRIDDB_API_KEY="${steamgriddb_api_key}"
+    bashio::log.info "SteamGridDB configured"
+fi
+
+# SSL Configuration moved to dedicated block below
+if bashio::config.true 'ssl'; then
+    CERTFILE=$(bashio::config 'certfile')
+    KEYFILE=$(bashio::config 'keyfile')
+    if [ -f "/ssl/${CERTFILE}" ] && [ -f "/ssl/${KEYFILE}" ]; then
+        bashio::log.info "Configuring SSL Environment Variables..."
+        export ROMM_HTTPS_ENABLED="true"
+        export ROMM_HTTPS_CERT_PATH="/ssl/${CERTFILE}"
+        export ROMM_HTTPS_KEY_PATH="/ssl/${KEYFILE}"
+    else
+        bashio::log.error "SSL certificates available?"
+        if [ ! -f "/ssl/${CERTFILE}" ]; then bashio::log.error "Missing: /ssl/${CERTFILE}"; fi
+        if [ ! -f "/ssl/${KEYFILE}" ]; then bashio::log.error "Missing: /ssl/${KEYFILE}"; fi
+        bashio::exit.nok "Missing SSL certificates"
+    fi
+fi
+# Nginx patching logic is now handled in the dedicated block below
+
+hasheous_api_enabled=$(bashio::config 'hasheous_api_enabled')
+if [ -n "$hasheous_api_enabled" ]; then
+    export HASHEOUS_API_ENABLED="${hasheous_api_enabled}"
+else
+    export HASHEOUS_API_ENABLED="true"
+fi
+
+launchbox_api_enabled=$(bashio::config 'launchbox_api_enabled')
+if [ -n "$launchbox_api_enabled" ]; then
+    export LAUNCHBOX_API_ENABLED="${launchbox_api_enabled}"
+else
+    export LAUNCHBOX_API_ENABLED="false"
+fi
+
+# ------------------------------------------------------------------------------
+# NGINX CONFIGURATION DISCOVERY & PATCHING
+# ------------------------------------------------------------------------------
+# The official image uses templates in /etc/nginx/templates/ which are processed
+# by envsubst into /etc/nginx/conf.d/ at startup (via docker-entrypoint.sh).
+# We must patch the TEMPLATE if it exists, otherwise the generated file will be overwritten.
+
+NGINX_TEMPLATE_DIR="/etc/nginx/templates"
+NGINX_CONF_DIR="/etc/nginx/conf.d"
+NGINX_TARGET_FILE=""
+
+# List files for debugging (visible in add-on logs)
+bashio::log.info "Nginx File Structure Probe:"
+ls -FR /etc/nginx/templates 2>/dev/null || bashio::log.info "No templates dir"
+ls -FR /etc/nginx/conf.d 2>/dev/null || bashio::log.info "No conf.d dir"
+
+if [ -d "$NGINX_TEMPLATE_DIR" ] && [ -n "$(ls -A $NGINX_TEMPLATE_DIR/*.template 2>/dev/null)" ]; then
+    # Pick the first template found, commonly default.conf.template
+    NGINX_TARGET_FILE=$(ls $NGINX_TEMPLATE_DIR/*.template | head -n 1)
+    bashio::log.info "Found Nginx template file: ${NGINX_TARGET_FILE}"
+elif [ -d "$NGINX_CONF_DIR" ] && [ -n "$(ls -A $NGINX_CONF_DIR/*.conf 2>/dev/null)" ]; then
+    # Fallback to conf.d if no templates (though entrypoint might overwrite this)
+    NGINX_TARGET_FILE=$(ls $NGINX_CONF_DIR/*.conf | head -n 1)
+    bashio::log.warning "No templates found. Patching config file directly (may be overwritten): ${NGINX_TARGET_FILE}"
+else
+    # Last resort, maybe legacy image structure
+    NGINX_TARGET_FILE=$(grep -r "listen" /etc/nginx 2>/dev/null | grep -v "include" | head -n 1 | cut -d: -f1 || true)
+    if [ -n "$NGINX_TARGET_FILE" ]; then
+         bashio::log.warning "Patching arbitrary Nginx file found via grep: ${NGINX_TARGET_FILE}"
+    fi
+fi
+
+if [ -z "$NGINX_TARGET_FILE" ]; then
+    bashio::log.error "Could not identify any Nginx configuration file to patch!"
+else
+    # SSL PATCHING
+    if bashio::config.true 'ssl'; then
+        if [ -f "/ssl/${CERTFILE}" ] && [ -f "/ssl/${KEYFILE}" ]; then
+            bashio::log.info "Applying SSL patch to ${NGINX_TARGET_FILE}..."
+            
+            # 1. Add 'ssl' to listen directives (Idempotent: only if 'ssl' is missing on the line)
+            sed -i -E '/ssl/!s/listen\s+([^;]+);/listen \1 ssl;/g' "$NGINX_TARGET_FILE"
+            
+            # 2. Inject certificate paths (Idempotent: check if exists first)
+            if grep -q "ssl_certificate" "$NGINX_TARGET_FILE"; then
+                bashio::log.info "SSL certificates already configured in ${NGINX_TARGET_FILE}. Skipping injection."
+            else
+                bashio::log.info "Injecting SSL configuration..."
+                CERT_CONFIG="    ssl_certificate /ssl/${CERTFILE};\\n    ssl_certificate_key /ssl/${KEYFILE};"
+                
+                if grep -q "server.*{" "$NGINX_TARGET_FILE"; then
+                    sed -i "/server.*{/a ${CERT_CONFIG}" "$NGINX_TARGET_FILE"
+                else
+                    sed -i "s|listen.*ssl;|&\n${CERT_CONFIG}|" "$NGINX_TARGET_FILE"
+                fi
+            fi
+        fi
+    fi
+
+    # DOS EMULATION HEADERS PATCHING (COOP/COEP)
+    # Check if headers already exist to avoid duplication on container restart
+    if grep -q "Cross-Origin-Embedder-Policy" "$NGINX_TARGET_FILE"; then
+         bashio::log.info "DOS Emulation headers already present in ${NGINX_TARGET_FILE}. Skipping injection."
+    else
+        bashio::log.info "Applying DOS Emulation Headers to ${NGINX_TARGET_FILE}..."
+        
+        # We use 'always' to ensure headers are sent even for error responses (though mainly for main 200 OK)
+        HEADERS="    add_header Cross-Origin-Embedder-Policy 'require-corp' always;\\n    add_header Cross-Origin-Opener-Policy 'same-origin' always;"
+        
+        # Inject headers. We prefer 'location /' but fallback to server level.
+        if grep -qE "^\s*location\s+/\s*\{" "$NGINX_TARGET_FILE"; then
+             bashio::log.info "Found 'location /' block. Injecting headers there."
+             sed -i -E "/^\s*location\s+\/\s*\{/a ${HEADERS}" "$NGINX_TARGET_FILE"
+        elif grep -q "location /" "$NGINX_TARGET_FILE"; then
+             # Fallback simple match if the complex regex fails
+             bashio::log.info "Found 'location /' via simple grep. Injecting headers."
+             sed -i "/location \/.*{/a ${HEADERS}" "$NGINX_TARGET_FILE"
+        else
+             bashio::log.warning "Could not find 'location /' block. Adding headers to server block."
+             # Attempt to add after 'server {'
+             if grep -q "server.*{" "$NGINX_TARGET_FILE"; then
+                sed -i "/server.*{/a ${HEADERS}" "$NGINX_TARGET_FILE"
+             else
+                sed -i "/listen.*;/a ${HEADERS}" "$NGINX_TARGET_FILE"
+             fi
+        fi
+    fi
+fi
+
+# Verify HASS mounts
+if [ -d "/share" ]; then
+    bashio::log.info "HASS /share mount detected."
+else
+    bashio::log.warning "HASS /share mount NOT detected. Local folder will be used."
+fi
+
+if [ -d "/media" ]; then
+    bashio::log.info "HASS /media mount detected."
+else
+    bashio::log.warning "HASS /media mount NOT detected. Local folder will be used."
+fi
+
+if [ -d "/config" ]; then
+    bashio::log.info "HASS /config directory detected."
+elif [ -d "/homeassistant" ]; then
+    bashio::log.info "Linking /homeassistant to /config..."
+    ln -s /homeassistant /config
+else
+    bashio::log.warning "No HASS configuration directory found. Local folder will be used."
+fi
+
+# Set romm base path to a writable location
+# This avoid permission issues with the built-in /romm directory
+export ROMM_BASE_PATH="/data/romm"
+mkdir -p "${ROMM_BASE_PATH}"
+
+bashio::log.info "Library path: ${library_path}"
+bashio::log.info "Assets path: ${assets_path}"
+bashio::log.info "Resources path: ${resources_path}"
+
+# Create the target directories on the HASS shares
+mkdir -p "${library_path}"
+mkdir -p "${assets_path}"
+mkdir -p "${resources_path}"
+
+# Copy default resources if the directory is empty
+if [ -z "$(ls -A "${resources_path}")" ] && [ -d "/romm/resources" ] && [ ! -L "/romm/resources" ]; then
+    if [ -n "$(ls -A "/romm/resources" 2>/dev/null)" ]; then
+        bashio::log.info "Pre-seeding resources directory with default files..."
+        cp -rp /romm/resources/. "${resources_path}/"
+    fi
+fi
+
+# Export environment variables to tell RomM to use our new paths.
+# RomM v3 utilizes these variables to override its default internal paths.
+export ROMM_LIBRARY_PATH="${library_path}"
+export ROMM_ASSETS_PATH="${assets_path}"
+export ROMM_RESOURCES_PATH="${resources_path}"
+export ROMM_CONFIG_PATH="${config_path}"
+
+# Symlink them into our writable base path as well. RomM uses ROMM_BASE_PATH
+# as the parent directory for its library, assets, and resources.
+mkdir -p "${ROMM_BASE_PATH}"
+ln -snf "${library_path}" "${ROMM_BASE_PATH}/library"
+ln -snf "${assets_path}" "${ROMM_BASE_PATH}/assets"
+ln -snf "${resources_path}" "${ROMM_BASE_PATH}/resources"
+
+# Resources are static and provided by the image - link them to our new root
+# Already done above: ln -snf "${resources_path}" "${ROMM_BASE_PATH}/resources"
+
+# Setup persistent config
+bashio::log.info "Configuring RomM config file at ${config_path}..."
+
+# Diagnostic checks to verify config location
+if [ -f "/config/romm/config.yml" ]; then
+    bashio::log.info "Found config file at /config/romm/config.yml"
+fi
+if [ -f "/share/romm/config.yml" ]; then
+    bashio::log.info "Found config file at /share/romm/config.yml"
+fi
+
+mkdir -p "$(dirname "${config_path}")"
+if [ ! -f "${config_path}" ]; then
+    if [ -f "/data/config/config.yml" ]; then
+        bashio::log.info "Migrating existing configuration from /data/config/config.yml..."
+        cp "/data/config/config.yml" "${config_path}"
+    else
+        echo "{}" > "${config_path}"
+    fi
+    chmod 666 "${config_path}"
+fi
+
+# Link it to the internal locations RomM expects
+mkdir -p "/romm/config" 2>/dev/null || true
+ln -sf "${config_path}" "/romm/config/config.yml" 2>/dev/null || true
+mkdir -p "${ROMM_BASE_PATH}/config"
+ln -sf "${config_path}" "${ROMM_BASE_PATH}/config/config.yml"
+
+bashio::log.info "Internal symlink created: $(ls -l /romm/config/config.yml)"
+
+# Networking configuration
+export ROMM_PORT="8080"
+export HOST="0.0.0.0"
+
+# Note: RomM v3.0+ uses an internal process manager (/init) that starts
+# Valkey (Redis), Gunicorn (Backend), and Nginx (Frontend).
+# We must call the official entrypoint and /init to ensure all services start.
+
+# Internal directories needed by RomM/Nginx
+# Use /data for everything writable to avoid permission issues in rootfs
+mkdir -p /data/redis
+mkdir -p /data/nginx/client_body
+mkdir -p /data/nginx/proxy
+mkdir -p /data/nginx/fastcgi
+mkdir -p /data/nginx/uwsgi
+mkdir -p /data/nginx/scgi
+chmod -R 777 /data
+
+# Create a custom Valkey configuration to use /data and disable failing persistence
+mkdir -p /usr/local/etc/valkey
+cat <<EOF > /usr/local/etc/valkey/valkey.conf
+dir /data/redis
+save ""
+appendonly no
+protected-mode no
+bind 127.0.0.1
+EOF
+
+# Point RomM to use our /data directories for its own internal logic where possible
+export REDIS_HOST="127.0.0.1" # This tells RomM to skip its internal watchdog and use ours
+export REDIS_PORT="6379"
+
+# Patch Nginx configuration to use /data for temporary files instead of /tmp
+# and ensure it runs as root to avoid permission dropping issues.
+if [ -f /etc/nginx/nginx.conf ]; then
+    bashio::log.info "Patching Nginx configuration..."
+    
+    # Check if 'user' directive already exists
+    if grep -q "^user " /etc/nginx/nginx.conf; then
+        bashio::log.info "Updating existing user directive to root"
+        sed -i 's/^user .*/user root;/g' /etc/nginx/nginx.conf
+    else
+        bashio::log.info "Adding user root directive"
+        sed -i '1iuser root;' /etc/nginx/nginx.conf
+    fi
+
+    # Patch paths
+    sed -i 's|/tmp/client_body|/data/nginx/client_body|g' /etc/nginx/nginx.conf
+    sed -i 's|/tmp/fastcgi|/data/nginx/fastcgi|g' /etc/nginx/nginx.conf
+    sed -i 's|/tmp/proxy|/data/nginx/proxy|g' /etc/nginx/nginx.conf
+    sed -i 's|/tmp/uwsgi|/data/nginx/uwsgi|g' /etc/nginx/nginx.conf
+    sed -i 's|/tmp/scgi|/data/nginx/scgi|g' /etc/nginx/nginx.conf
+
+    # Nginx Debug Logging
+    if bashio::config.true 'debug_enabled'; then
+        bashio::log.info "Patching Nginx for debug logging..."
+        # Update main error_log to debug
+        sed -i 's/error_log .*/error_log \/dev\/stderr debug;/g' /etc/nginx/nginx.conf
+        # Verify if not present, append it after pid or user
+        if ! grep -q "error_log" /etc/nginx/nginx.conf; then
+             sed -i '/pid .*/a error_log \/dev\/stderr debug;' /etc/nginx/nginx.conf
+        fi
+    fi
+fi
+
+# Patch RomM's internal init script to avoid dropping permissions to 'romm' user
+# as the Home Assistant environment doesn't allow the master process to chown directories.
+if [ -f /usr/bin/romm-init ]; then
+    bashio::log.info "Patching RomM init script to prevent permission dropping..."
+    sed -i "s/nginx -g 'user romm;'/nginx/g" /usr/bin/romm-init
+fi
+
+# Deep-scanning size support
+ROMM_HANDLER="/romm/backend/handler/filesystem/roms_handler.py"
+if [ -f "$ROMM_HANDLER" ]; then
+    if bashio::config.true 'enable_deep_scanning'; then
+        bashio::log.info "Enabling deep-scanning patch for uncompressed zip size calculation..."
+        
+        # Check if already patched to avoid double patch
+        if ! grep -q "_get_deep_size" "$ROMM_HANDLER"; then
+            sed -i "/class FSRomsHandler(FSHandler):/a \\
+    def _get_deep_size(self, path):\\
+        try:\\
+            import zipfile\\
+            path_str = str(path).lower()\\
+            if path_str.endswith('.zip'):\\
+                with zipfile.ZipFile(path) as z: return max(f.file_size for f in z.infolist())\\
+            if path_str.endswith(('.tar', '.tar.gz', '.tgz', '.tar.bz2', '.tar.xz')):\\
+                import tarfile\\
+                with tarfile.open(path) as t: return max(m.size for m in t.getmembers() if m.isfile())\\
+            if path_str.endswith('.7z'):\\
+                import subprocess\\
+                res = subprocess.run(['7zz', 'l', '-slt', '-ba', str(path)], capture_output=True, text=True, check=True)\\
+                sizes = [int(l.split('=')[1]) for l in res.stdout.splitlines() if l.startswith('Size = ')]\\
+                if sizes: return max(sizes)\\
+        except: pass\\
+        return os.stat(path).st_size" "$ROMM_HANDLER"
+
+            # Apply the helper call
+            sed -i "s/file_size_bytes=os.stat(abs_file_path).st_size/file_size_bytes=self._get_deep_size(abs_file_path)/" "$ROMM_HANDLER"
+        else
+            bashio::log.info "Deep-scanning patch already applied."
+        fi
+    else
+        bashio::log.info "Deep-scanning disabled. Checking for reversal..."
+        # Reverse the patch if it exists (revert function call)
+        if grep -q "file_size_bytes=self._get_deep_size(abs_file_path)" "$ROMM_HANDLER"; then
+             bashio::log.info "Reverting deep-scanning usage..."
+             sed -i "s/file_size_bytes=self._get_deep_size(abs_file_path)/file_size_bytes=os.stat(abs_file_path).st_size/" "$ROMM_HANDLER"
+        fi
+        # We don't remove the method definition as it is harmless if unused
+    fi
+fi
+
+bashio::log.info "Starting local Valkey (Redis) on /data/redis..."
+valkey-server /usr/local/etc/valkey/valkey.conf --daemonize yes
+
+bashio::log.info "Configuration complete. Starting RomM services..."
+
+# Execute the official entrypoint with the preserved official init script.
+# Since REDIS_HOST is set, it will behave as if using an external Redis
+# and skip the failing /redis-data logic.
+chmod +x /docker-entrypoint.sh /usr/bin/romm-init
+exec /docker-entrypoint.sh /usr/bin/romm-init
