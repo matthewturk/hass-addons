@@ -1,0 +1,16 @@
+configuration:
+  db_host:
+    name: Database host
+    description: Host of the MariaDB database.
+  db_name:
+    name: Database name
+    description: Name of the database for the game.
+  db_user:
+    name: Database user
+    description: Database username.
+  db_password:
+    name: Database password
+    description: Database password.
+  db_use_data_cache:
+    name: Use data cache
+    description: Whether to enable data caching.
