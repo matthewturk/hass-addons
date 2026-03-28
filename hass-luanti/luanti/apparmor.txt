@@ -1,0 +1,71 @@
+#include <tunables/global>
+
+profile luanti flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  # Capabilities
+  file,
+  signal (send) set=(kill,term,int,hup,cont),
+
+  # S6-Overlay
+  /init ix,
+  /bin/** ix,
+  /usr/bin/** ix,
+  /run/{s6,s6-rc*,service}/** ix,
+  /package/** ix,
+  /command/** ix,
+  /etc/services.d/** rwix,
+  /etc/cont-init.d/** rwix,
+  /etc/cont-finish.d/** rwix,
+  /run/{,**} rwk,
+  /dev/tty rw,
+
+  # Bashio
+  /usr/lib/bashio/** ix,
+  /tmp/** rwk,
+
+  # Access to options.json and other add-on files
+  /data/** rw,
+
+  # Access to shared content (mods, games)
+  /share/luanti/** rw,
+
+  # Start new profile for the Luanti/Minetest server binary
+  /usr/bin/luantiserver cx -> luanti_server,
+  /usr/bin/minetestserver cx -> luanti_server,
+
+  profile luanti_server flags=(attach_disconnected,mediate_deleted) {
+    #include <abstractions/base>
+
+    # Receive signals from S6-Overlay
+    signal (receive) peer=*_luanti,
+
+    # Network access for the game server (UDP + TCP)
+    network inet dgram,
+    network inet stream,
+    network inet6 dgram,
+    network inet6 stream,
+
+    # Server binaries and shared libraries
+    /usr/bin/luantiserver rix,
+    /usr/bin/minetestserver rix,
+    /usr/lib/** rm,
+    /lib/** rm,
+
+    # Game and mod data (read-only system paths)
+    /usr/share/luanti/** r,
+    /usr/share/minetest/** r,
+
+    # Persistent data and shared mods/games
+    /data/** rw,
+    /share/luanti/** rw,
+
+    # System
+    /etc/hosts r,
+    /etc/resolv.conf r,
+    /etc/ssl/** r,
+    /proc/sys/vm/overcommit_memory r,
+    /dev/tty rw,
+    /dev/urandom r,
+  }
+}
