@@ -1,0 +1,32 @@
+#include <tunables/global>
+
+profile local_abs-metadata flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  # Final attempt: full broad permissions at the top level
+  # to allow S6-overlay and Python to run without complex transitions
+  file,
+  capability,
+  network,
+  signal,
+  dbus,
+
+  /data/** rw,
+  /media r,
+  /media/** r,
+  /config r,
+  /config/** r,
+  /opt/abs_mdserver/** r,
+  /usr/lib/python3*/** r,
+  /usr/bin/python3* r,
+  /usr/lib/libpython3* mr,
+  /tmp/** rwk,
+  /dev/tty rw,
+  /run/{,**} rwk,
+  /etc/services.d/** rwix,
+  /etc/cont-init.d/** rwix,
+  /etc/cont-finish.d/** rwix,
+  /init ix,
+  /bin/** ix,
+  /usr/bin/** ix,
+}
