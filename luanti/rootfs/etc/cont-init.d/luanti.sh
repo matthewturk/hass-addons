@@ -73,11 +73,9 @@ mkdir -p /share/luanti/games
     printf 'gamepath = /share/luanti/games\n'
 } > /data/luanti.conf
 
-bashio::log.info "Using SQLite integration"
+bashio::log.info "Using PostgreSQL integration"
 {
-    printf '\n# SQLite settings\n'
     # Use synchronous = 0 (OFF) to prevent "database is locked" errors on docker volumes
-    printf 'sqlite_synchronous = 0\n'
 } >> /data/luanti.conf
 
 # Append optional settings only when they have a non-empty value.

@@ -5,8 +5,8 @@ FROM $BUILD_FROM
 # Install Luanti/Minetest server
 # Alpine 3.21 provides 'minetest-server'. Future versions or Edge might provide 'luanti-server'.
 # We install 'git' and 'curl' first to ensure they are available for downloading games.
-# We include 'sqlite' to manage database locking settings.
-RUN apk add --no-cache git curl sqlite && \
+# We include 'postgresql' and 'postgresql-client' for the embedded database.
+RUN apk add --no-cache git curl postgresql postgresql-client && \
     (apk add --no-cache luanti-server || apk add --no-cache minetest-server || apk add --no-cache luanti || apk add --no-cache minetest)
 
 # Download Minetest Game (classic default)

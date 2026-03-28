@@ -2,7 +2,6 @@
 # shellcheck shell=bash
 # ==============================================================================
 # Start the Luanti game server
-# s6-overlay docs: https://github.com/just-containers/s6-overlay
 # ==============================================================================
 
 declare world_name
@@ -25,78 +24,110 @@ elif command -v minetest > /dev/null 2>&1; then
     luanti_bin="minetest"
     server_args+=("--server")
 else
-    # Fallback/Error
     bashio::log.fatal "Could not find a Luanti or Minetest server binary!"
     exit 1
 fi
 
-# Validate world_name and game_id to prevent path traversal/injection
 if [[ ! "${world_name}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-    bashio::log.fatal "Invalid world_name '${world_name}': only letters, digits, hyphens and underscores are allowed."
+    bashio::log.fatal "Invalid world_name '${world_name}'"
     exit 1
 fi
 
 if [[ ! "${game_id}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-    bashio::log.fatal "Invalid game_id '${game_id}': only letters, digits, hyphens and underscores are allowed."
+    bashio::log.fatal "Invalid game_id '${game_id}'"
     exit 1
 fi
 
-# Check if reset_world is enabled
 if bashio::config.true 'reset_world'; then
     if [ -d "/data/worlds/${world_name}" ]; then
         bashio::log.warning "Resetting world '${world_name}' as requested by configuration..."
-        
-        # Ensure process isn't running and holding locks
-        bashio::log.info "Ensuring no previous server instances are running..."
         killall -9 "${luanti_bin}" 2>/dev/null || true
-        # Wait for kernel to release resources
         sleep 2
-        
-        # Force removal of the directory
         rm -rf "/data/worlds/${world_name}"
-        
-        # Manually create the directory again to ensure it's clean and owned by correct user
-        mkdir -p "/data/worlds/${world_name}"
-        
-        bashio::log.warning "World has been pushed to the void. Set 'reset_world' back to 'false' to persist data in future."
+        bashio::log.warning "World has been pushed to the void. Set 'reset_world' back to 'false'."
     fi
+fi
+
+mkdir -p "/data/worlds/${world_name}"
+export HOME=/data/luanti_home
+mkdir -p "${HOME}"
+
+if [ -d "/data/worlds/${world_name}" ]; then
+    chown -R root:root "/data/worlds/${world_name}"
+fi
+
+# Wait for local PostgreSQL
+bashio::log.info "Waiting for internal PostgreSQL server to be ready..."
+while ! pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; do
+    sleep 1
+done
+
+# Ensure database exists
+if ! psql -h 127.0.0.1 -U postgres -lqt | cut -d \| -f 1 | grep -qw luanti; then
+    bashio::log.info "Creating PostgreSQL database 'luanti'..."
+    createdb -h 127.0.0.1 -U postgres luanti
+fi
+
+WORLD_MT="/data/worlds/${world_name}/world.mt"
+PG_CONN="host=127.0.0.1 port=5432 user=postgres dbname=luanti"
+
+if [ ! -f "${WORLD_MT}" ]; then
+    bashio::log.info "Initializing new world.mt with PostgreSQL backends..."
+    cat <<INNER_EOF > "${WORLD_MT}"
+enable_damage = true
+creative_mode = false
+auth_backend = postgresql
+player_backend = postgresql
+backend = postgresql
+map_backend = postgresql
+mod_storage_backend = postgresql
+pgsql_connection = ${PG_CONN}
+pgsql_auth_connection = ${PG_CONN}
+pgsql_player_connection = ${PG_CONN}
+pgsql_mod_storage_connection = ${PG_CONN}
+INNER_EOF
+else
+    # Check if we need to migrate from SQLite
+    if grep -q "backend = sqlite3" "${WORLD_MT}" || grep -q "backend = sqlite" "${WORLD_MT}"; then
+        bashio::log.info "SQLite database found. Migrating to PostgreSQL..."
+        
+        # Add connection strings if they don't exist
+        for conn in pgsql_connection pgsql_auth_connection pgsql_player_connection pgsql_mod_storage_connection; do
+            if ! grep -q "^${conn} =" "${WORLD_MT}"; then
+                echo "${conn} = ${PG_CONN}" >> "${WORLD_MT}"
+            fi
+        done
+
+        # Migrate each component if needed
+        for type in map auth players mod_storage; do
+            if grep -q "^${type}_backend = sqlite3" "${WORLD_MT}" || grep -q "^${type}_backend = sqlite" "${WORLD_MT}" || grep -q "^backend = sqlite" "${WORLD_MT}"; then
+                bashio::log.info "Migrating ${type}..."
+                if [ "${type}" = "map" ]; then flag="--migrate"; else flag="--migrate-${type}"; fi
+                
+                # Run the migration
+                "${luanti_bin}" "${server_args[@]}" --world "/data/worlds/${world_name}" "${flag}" postgresql || bashio::log.warning "Migration warning for ${type}."
+                
+                # Rewrite setting to postgresql
+                sed -i "s/^${type}_backend = sqlite.*/${type}_backend = postgresql/g" "${WORLD_MT}"
+            fi
+        done
+        sed -i "s/^backend = sqlite.*/backend = postgresql/g" "${WORLD_MT}"
+        bashio::log.info "Migration to PostgreSQL completed!"
+    fi
+    
+    # Ensure connections are present for existing postgresql entries
+    for conn in pgsql_connection pgsql_auth_connection pgsql_player_connection pgsql_mod_storage_connection; do
+        if ! grep -q "^${conn} =" "${WORLD_MT}"; then
+            echo "${conn} = ${PG_CONN}" >> "${WORLD_MT}"
+        fi
+    done
 fi
 
 bashio::log.info "Starting Luanti server with ${luanti_bin}..."
 bashio::log.info "World: /data/worlds/${world_name}"
 bashio::log.info "Game ID: ${game_id}"
 
-# Set HOME to a subdirectory in /data to ensure it is writable and persistent
-# This avoids "Cannot create user data directory" errors
-export HOME=/data/luanti_home
-mkdir -p "${HOME}"
-
-# Fix permissions
-if [ -d "/data/worlds/${world_name}" ]; then
-    chown -R root:root "/data/worlds/${world_name}"
-fi
-
-# Clean up stale lock files and force journal mode to DELETE/TRUNCATE to avoid locking issues on docker volumes
-if [ -d "/data/worlds/${world_name}" ]; then
-    bashio::log.info "Cleaning up potential stale SQLite lock files..."
-    find "/data/worlds/${world_name}" -name "*.sqlite.lock" -delete
-    find "/data/worlds/${world_name}" -name "*.sqlite-wal" -delete
-    find "/data/worlds/${world_name}" -name "*.sqlite-shm" -delete
-    
-    # Only run sqlite commands if files actually exist (not on fresh reset)
-    if ls "/data/worlds/${world_name}/"*.sqlite >/dev/null 2>&1; then
-        bashio::log.info "Forcing SQLite journal mode to DELETE and VACUUMing for stability..."
-        for db in map auth mod_storage players; do
-            if [ -f "/data/worlds/${world_name}/${db}.sqlite" ]; then
-                 # VACUUM cleans the db and effectively resets the file state
-                sqlite3 "/data/worlds/${world_name}/${db}.sqlite" "PRAGMA journal_mode=DELETE; VACUUM;" || true
-            fi
-        done
-    fi
-fi
-
 exec "${luanti_bin}" "${server_args[@]}" \
     --gameid "${game_id}" \
     --world "/data/worlds/${world_name}" \
     --config /data/luanti.conf
-

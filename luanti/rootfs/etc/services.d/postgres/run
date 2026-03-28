@@ -1,0 +1,24 @@
+#!/usr/bin/with-contenv bashio
+# shellcheck shell=bash
+
+PGDATA="/data/postgres"
+
+if [ ! -d "${PGDATA}" ] || [ ! -s "${PGDATA}/PG_VERSION" ]; then
+    bashio::log.info "Initializing PostgreSQL database..."
+    mkdir -p "${PGDATA}"
+    # Change owner so postgres initdb can work
+    chown -R postgres:postgres "${PGDATA}"
+    su -s /bin/sh postgres -c "initdb -D ${PGDATA} -U postgres --auth=trust"
+    
+    # Ensure local connections without password (trust) to simplify add-on deployment
+    echo "host all all 127.0.0.1/32 trust" >> "${PGDATA}/pg_hba.conf"
+fi
+
+# Ensure permissions
+chown -R postgres:postgres "${PGDATA}"
+# Make sure run directory for sockets exists
+mkdir -p /run/postgresql
+chown -R postgres:postgres /run/postgresql
+
+bashio::log.info "Starting PostgreSQL server..."
+exec su -s /bin/sh postgres -c "postgres -D ${PGDATA}"
