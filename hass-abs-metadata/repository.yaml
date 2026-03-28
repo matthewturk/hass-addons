@@ -1,4 +1,0 @@
-# https://developers.home-assistant.io/docs/add-ons/repository#repository-configuration
-name: ABS Metadata Server add-on repository
-url: 'https://github.com/matthewturk/hass-abs-metadata'
-maintainer: Matthew Turk <matthewturk@gmail.com>
