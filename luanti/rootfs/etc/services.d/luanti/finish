@@ -13,4 +13,5 @@ if [[ "${APP_EXIT_CODE}" -ne 0 ]] && [[ "${APP_EXIT_CODE}" -ne 256 ]]; then
     exec /run/s6/basedir/bin/halt
 fi
 
-bashio::log.info "Luanti server stopped; restarting service"
+bashio::log.info "Luanti server stopped; restarting service in 3 seconds..."
+sleep 3

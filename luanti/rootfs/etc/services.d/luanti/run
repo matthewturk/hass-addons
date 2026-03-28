@@ -7,28 +7,96 @@
 
 declare world_name
 declare luanti_bin
+declare game_id
+declare -a server_args
 
 world_name=$(bashio::config 'world_name')
+game_id=$(bashio::config 'game_id')
 
-# Validate world_name to prevent path traversal attacks
+# Locate the server binary FIRST so we can use it for process management
+if command -v luantiserver > /dev/null 2>&1; then
+    luanti_bin="luantiserver"
+elif command -v minetestserver > /dev/null 2>&1; then
+    luanti_bin="minetestserver"
+elif command -v luanti > /dev/null 2>&1; then
+    luanti_bin="luanti"
+    server_args+=("--server")
+elif command -v minetest > /dev/null 2>&1; then
+    luanti_bin="minetest"
+    server_args+=("--server")
+else
+    # Fallback/Error
+    bashio::log.fatal "Could not find a Luanti or Minetest server binary!"
+    exit 1
+fi
+
+# Validate world_name and game_id to prevent path traversal/injection
 if [[ ! "${world_name}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
     bashio::log.fatal "Invalid world_name '${world_name}': only letters, digits, hyphens and underscores are allowed."
     exit 1
 fi
 
-# Locate the server binary (name changed when Minetest was renamed to Luanti)
-if command -v luantiserver > /dev/null 2>&1; then
-    luanti_bin="luantiserver"
-elif command -v minetestserver > /dev/null 2>&1; then
-    luanti_bin="minetestserver"
-else
-    bashio::log.fatal "Could not find a Luanti or Minetest server binary!"
+if [[ ! "${game_id}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    bashio::log.fatal "Invalid game_id '${game_id}': only letters, digits, hyphens and underscores are allowed."
     exit 1
+fi
+
+# Check if reset_world is enabled
+if bashio::config.true 'reset_world'; then
+    if [ -d "/data/worlds/${world_name}" ]; then
+        bashio::log.warning "Resetting world '${world_name}' as requested by configuration..."
+        
+        # Ensure process isn't running and holding locks
+        bashio::log.info "Ensuring no previous server instances are running..."
+        killall -9 "${luanti_bin}" 2>/dev/null || true
+        # Wait for kernel to release resources
+        sleep 2
+        
+        # Force removal of the directory
+        rm -rf "/data/worlds/${world_name}"
+        
+        # Manually create the directory again to ensure it's clean and owned by correct user
+        mkdir -p "/data/worlds/${world_name}"
+        
+        bashio::log.warning "World has been pushed to the void. Set 'reset_world' back to 'false' to persist data in future."
+    fi
 fi
 
 bashio::log.info "Starting Luanti server with ${luanti_bin}..."
 bashio::log.info "World: /data/worlds/${world_name}"
+bashio::log.info "Game ID: ${game_id}"
 
-exec "${luanti_bin}" \
+# Set HOME to a subdirectory in /data to ensure it is writable and persistent
+# This avoids "Cannot create user data directory" errors
+export HOME=/data/luanti_home
+mkdir -p "${HOME}"
+
+# Fix permissions
+if [ -d "/data/worlds/${world_name}" ]; then
+    chown -R root:root "/data/worlds/${world_name}"
+fi
+
+# Clean up stale lock files and force journal mode to DELETE/TRUNCATE to avoid locking issues on docker volumes
+if [ -d "/data/worlds/${world_name}" ]; then
+    bashio::log.info "Cleaning up potential stale SQLite lock files..."
+    find "/data/worlds/${world_name}" -name "*.sqlite.lock" -delete
+    find "/data/worlds/${world_name}" -name "*.sqlite-wal" -delete
+    find "/data/worlds/${world_name}" -name "*.sqlite-shm" -delete
+    
+    # Only run sqlite commands if files actually exist (not on fresh reset)
+    if ls "/data/worlds/${world_name}/"*.sqlite >/dev/null 2>&1; then
+        bashio::log.info "Forcing SQLite journal mode to DELETE and VACUUMing for stability..."
+        for db in map auth mod_storage players; do
+            if [ -f "/data/worlds/${world_name}/${db}.sqlite" ]; then
+                 # VACUUM cleans the db and effectively resets the file state
+                sqlite3 "/data/worlds/${world_name}/${db}.sqlite" "PRAGMA journal_mode=DELETE; VACUUM;" || true
+            fi
+        done
+    fi
+fi
+
+exec "${luanti_bin}" "${server_args[@]}" \
+    --gameid "${game_id}" \
     --world "/data/worlds/${world_name}" \
     --config /data/luanti.conf
+
