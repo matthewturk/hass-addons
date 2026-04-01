@@ -1,5 +1,14 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.7.0
+
+- Updated RomM base image to `4.8.0`
+
+## 1.6.1
+
+- Updated RomM base image to latest stable release (`4.7.0`)
+- Fixed base image tag format to match published Docker Hub tags
+
 ## 1.4.0
 
 - Fixed `s6-overlay-suexec` fatal PID 1 error by preserving official RomM init
