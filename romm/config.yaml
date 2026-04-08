@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
 name: RomM
-version: "1.7.0"
+version: "1.7.1"
 slug: romm
 description: ROM Manager - A beautiful, powerful, self-hosted ROM management solution
 url: "https://github.com/matthewturk/hass-romm"

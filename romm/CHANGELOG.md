@@ -1,5 +1,9 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.7.1
+
+- Updated RomM base image to `4.8.1`
+
 ## 1.7.0
 
 - Updated RomM base image to `4.8.0`
