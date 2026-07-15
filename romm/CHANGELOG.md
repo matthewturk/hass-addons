@@ -1,5 +1,12 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.8.0
+
+- Updated RomM base image to `5.0.0`
+- Simplified startup script: RomM 5.0.0 manages valkey, gunicorn, nginx, and background workers internally
+- Removed manual valkey/redis setup and nginx patching (handled by official init)
+- Updated deep-scanning patch path for new backend location (`/backend/`)
+
 ## 1.7.1
 
 - Updated RomM base image to `4.8.1`

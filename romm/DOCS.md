@@ -12,6 +12,10 @@ RomM (ROM Manager) is a beautiful, powerful, self-hosted ROM management solution
 - **Cover Art & Screenshots**: Automatically download and display cover art and screenshots
 - **Web Interface**: Modern, responsive web UI accessible from any device
 - **Database Support**: MariaDB/MySQL or PostgreSQL required (MariaDB add-on recommended)
+- **In-Browser Play**: Play ROMs directly in the browser via EmulatorJS and RuffleRS
+- **Shared Savestates**: Share game saves and savestates with other users
+- **Server-Side ROM Patching**: Apply patches to ROMs directly from the web UI
+- **Granular Permissions**: Per-user and per-group permission controls
 
 ## Installation
 
@@ -160,6 +164,8 @@ Configure API keys for metadata providers to enhance your library:
 - **launchbox_api_enabled**: Enable LaunchBox metadata provider (default: false)
   - No API key required for basic integration
 
+Note: IGDB, MobyGames, and other metadata providers can be configured via the RomM web interface or config file.
+
 For more information on metadata providers, see: https://docs.romm.app/latest/Getting-Started/Metadata-Providers/
 
 ## ROM Library Structure
@@ -227,22 +233,17 @@ The add-on supports storing ROMs on external drives or network shares via the `/
 
 ## Known Limitations
 
-- **Redis**: Redis is managed internally by the add-on. External Redis configuration is not currently supported.
+- **Redis/Valkey**: Managed internally by RomM's init script. External Redis/Valkey configuration is not currently supported.
 
 ## Technical Notes
 
+### RomM 5.0.0 Architecture
+
+This add-on runs RomM 5.0.0, which manages all internal services (valkey, gunicorn, nginx, RQ scheduler/worker, and the filesystem watcher) via its official init script. The add-on only handles Home Assistant-specific integration (database detection, path mapping, SSL configuration).
+
 ### Frontend Development Mode
 
-This add-on runs RomM using its official Docker image, which runs the frontend with `npm run dev` (development mode). This is **intentional and by design** from the RomM developers - the official Docker image uses dev mode even in production deployments.
-
-**Why this is not a problem:**
-
-- This is the official, supported way to run RomM in Docker
-- All features work correctly in dev mode
-- Development mode features (hot reload, verbose logging) are not problematic in self-hosted environments
-- The RomM project has chosen this approach for their official distribution
-
-If you have concerns about this, please refer to the [RomM project's documentation](https://docs.romm.app/) and their [official Docker image](https://hub.docker.com/r/rommapp/romm).
+The official RomM Docker image runs the frontend with `npm run dev` (development mode). This is the official, supported way to run RomM in Docker. All features work correctly, and development mode is not problematic in self-hosted environments.
 
 ## Troubleshooting
 
