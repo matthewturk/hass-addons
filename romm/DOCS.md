@@ -237,9 +237,9 @@ The add-on supports storing ROMs on external drives or network shares via the `/
 
 ## Technical Notes
 
-### RomM 5.0.0 Architecture
+### RomM 5.1.0 Architecture
 
-This add-on runs RomM 5.0.0, which manages all internal services (valkey, gunicorn, nginx, RQ scheduler/worker, and the filesystem watcher) via its official init script. The add-on only handles Home Assistant-specific integration (database detection, path mapping, SSL configuration).
+This add-on runs RomM 5.1.0, which manages all internal services (valkey, gunicorn, nginx, RQ scheduler/worker, and the filesystem watcher) via its official init script. The add-on only handles Home Assistant-specific integration (database detection, path mapping, SSL configuration).
 
 ### Frontend Development Mode
 
